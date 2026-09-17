@@ -24,7 +24,7 @@ public class Peca {
     public boolean bucha(){
         return ladoA == ladoB;
     }
-
+/////////////////////////////////////////
     public Peca inverter(){
         return new Peca(ladoB, ladoA);
     }

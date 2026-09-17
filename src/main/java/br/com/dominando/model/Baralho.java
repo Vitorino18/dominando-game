@@ -13,6 +13,7 @@ public class Baralho {
         gerarPecas();
     }
 
+    // gera as pecas para o baralho (28)
     public void gerarPecas(){
         for(int ladoA = 0; ladoA <= 6; ladoA++){
             for (int ladoB = 0; ladoB <= ladoA; ladoB++){
@@ -32,6 +33,7 @@ public class Baralho {
         return pecas.removeFirst();
     }
 
+    // consulta //
     public int quantidadePecas(){
         return pecas.size();
     }

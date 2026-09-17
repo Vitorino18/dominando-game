@@ -10,6 +10,7 @@ import javafx.stage.Stage;
 public class Main extends Application{
     @Override
     public void start (Stage stage){
+
         // texto que pode ser criado //
         Label titulo = new Label("dominado");
 
@@ -24,6 +25,7 @@ public class Main extends Application{
         stage.setScene(cena);
         stage.show();
         }
+
     // inicia o aplicativo //
     public static void main(String[] args) {
         launch();
