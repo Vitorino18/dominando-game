@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import br.com.dominando.model.*;
 
+// Regras da Mesa //
 public class MesaService {
     private final Mesa mesa;
 

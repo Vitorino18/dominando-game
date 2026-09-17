@@ -65,6 +65,13 @@ public class Jogador {
         return erros;
     }
 
+    public Peca getPeca(int indicePeca){
+        if(indicePeca < 0 || indicePeca >= mao.size()){
+            return null;
+        }
+        return mao.get(indicePeca);
+    }
+
     @Override
     public String toString() {
         return nome + " -> " + mao;

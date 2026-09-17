@@ -1,5 +1,6 @@
 package br.com.dominando.service;
 
+// controle de turnos //
 public class TurnoService {
     private int indiceJogadorDaVez;
 

@@ -3,6 +3,7 @@ package br.com.dominando.service;
 import br.com.dominando.model.Jogador;
 import java.util.List;
 
+// pontos da rodada //
 public class PontuacaoService {
 
     public Jogador vencedorRodadaTravada(List<Jogador> jogadores) {
