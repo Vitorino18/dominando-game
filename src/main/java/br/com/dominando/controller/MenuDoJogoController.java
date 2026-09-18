@@ -84,7 +84,7 @@ public class MenuDoJogoController {
 
     private void sair() {
         System.out.println("""
-    Obrigado por jogar Dominando!
+    Obrigado por jogar Desce Uma!
     Até a próxima.
     """);
     }

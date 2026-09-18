@@ -14,9 +14,9 @@ public class GameController {
     public void iniciar() {
         partida.iniciarPartida();
 
-        System.out.println("\n====================================");
-        System.out.println("          Desce Uma");
-        System.out.println("====================================");
+        System.out.println("\n================================");
+        System.out.println("         Desce Uma");
+        System.out.println("==================================");
 
         while (!partida.terminouRodada() && !partida.rodadaTravada()) {
             mostrarEstadoDaPartida();
