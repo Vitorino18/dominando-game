@@ -10,6 +10,7 @@ import br.com.dominando.service.TurnoService;
 public class Partida {
     private final Baralho baralho;
     private final Mesa mesa;
+    private boolean comprouNoTurno = true;
 
     private final MesaService mesaService;
     private final TurnoService turnoService;
@@ -44,6 +45,7 @@ public class Partida {
             }
         }
         definirPrimeiroJogador();
+        comprouNoTurno = false;
     }
 
     public ResultadoJogada jogar(Peca peca, LadoMesa lado) {
@@ -69,13 +71,18 @@ public class Partida {
         return ResultadoJogada.JOGADA_VALIDA;
     }
 
-    public boolean comprarPeca() {
-        if (!podeComprar()) {
-            return false;
+    public ResultadoJogada comprarPeca() {
+        if (comprouNoTurno) {
+            return ResultadoJogada.COMPROU_JA_REALIZADA;
+        }
+        if (!podeComprar()){
+            return ResultadoJogada.BARALHO_VAZIO;
         }
 
         getJogadorVez().comprarDoBaralho(baralho);
-        return true;
+        comprouNoTurno = true;
+
+        return ResultadoJogada.COMPRA_REALIZADA;
     }
 
     public void passarVez() {
@@ -149,6 +156,7 @@ public class Partida {
 
     private void finalizarTurno() {
         turnoService.proximoTurno(jogadores.size());
+        comprouNoTurno = false;
     }
 
     private void definirPrimeiroJogador() {
@@ -181,7 +189,7 @@ public class Partida {
 
         StringBuilder texto = new StringBuilder();
 
-        texto.append("\n========== DOMINANDO ==========\n\n");
+        texto.append("\n========== Desce Uma  ==========\n\n");
 
         for (Jogador jogador : jogadores) {
 

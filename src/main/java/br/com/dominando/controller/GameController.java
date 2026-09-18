@@ -1,7 +1,6 @@
 package br.com.dominando.controller;
 
 import br.com.dominando.model.*;
-
 import java.util.Scanner;
 
 public class GameController {
@@ -16,7 +15,7 @@ public class GameController {
         partida.iniciarPartida();
 
         System.out.println("\n====================================");
-        System.out.println("          DOMINANDO");
+        System.out.println("          Desce Uma");
         System.out.println("====================================");
 
         while (!partida.terminouRodada() && !partida.rodadaTravada()) {
@@ -66,13 +65,11 @@ public class GameController {
     private void mostrarMenu() {
         System.out.println("""
             Escolha uma ação:
-            
             1 - Jogar peça
             2 - Comprar peça
             3 - Passar a vez
 
             """);
-
     }
 
 
@@ -80,7 +77,6 @@ public class GameController {
         while (true) {
             System.out.println("""
                 Escolha o lado:
-
                 E - Esquerda
                 D - Direita
                 
@@ -120,8 +116,7 @@ public class GameController {
                 return partida.jogar(peca, lado);
 
             case COMPRAR_PECA:
-                partida.comprarPeca();
-                return ResultadoJogada.COMPRA_REALIZADA;
+                return partida.comprarPeca();
 
             case PASSAR_VEZ:
                 partida.passarVez();
@@ -164,6 +159,12 @@ public class GameController {
             case COMPRA_REALIZADA :
                     System.out.println("Você comprou uma peça.");
                     break;
+            case COMPROU_JA_REALIZADA:
+                System.out.println("voce ja comprou uma peça no turno");
+                break;
+            case BARALHO_VAZIO:
+                System.out.println("O baralho está vazio");
+                break;
             case VEZ_PASSADA :
                     System.out.println("Você passou a vez.");
                     break;

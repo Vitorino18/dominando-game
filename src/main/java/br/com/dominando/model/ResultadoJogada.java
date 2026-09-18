@@ -5,6 +5,8 @@ public enum ResultadoJogada {
     GATO,
     PARTIDA_ENCERRADA,
     NAO_POSSUI_PECA,
+    COMPROU_JA_REALIZADA,
+    BARALHO_VAZIO,
 
     COMPRA_REALIZADA,
     VEZ_PASSADA

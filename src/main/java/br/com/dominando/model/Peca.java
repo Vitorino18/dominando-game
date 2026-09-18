@@ -24,7 +24,7 @@ public class Peca {
     public boolean bucha(){
         return ladoA == ladoB;
     }
-/////////////////////////////////////////
+
     public Peca inverter(){
         return new Peca(ladoB, ladoA);
     }
@@ -39,7 +39,6 @@ public class Peca {
         return "[" + ladoA + "|" + ladoB + "]";
     }
 
-    //falta reconhercer a peça invertida como a mesma peça que a original (6-5 = 5-6) //
     @Override
     public boolean equals(Object obj ){
         if(this == obj) return true;
