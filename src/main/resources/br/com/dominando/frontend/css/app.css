@@ -1,0 +1,15 @@
+.app-root {
+    -fx-background-color: linear-gradient(to bottom, #4a2017 0%, #7a2c20 100%);
+    -fx-font-family: "Segoe UI";
+}
+
+.prototype-title {
+    -fx-text-fill: #f3dfb3;
+    -fx-font-size: 42px;
+    -fx-font-weight: bold;
+}
+
+.prototype-subtitle {
+    -fx-text-fill: #d6b98c;
+    -fx-font-size: 18px;
+}
