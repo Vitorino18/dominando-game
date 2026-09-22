@@ -114,14 +114,10 @@ public class GameController {
             case JOGAR_PECA:
                 Peca peca = partida.getJogadorVez().getPeca(indicePeca);
                 return partida.jogar(peca, lado);
-
             case COMPRAR_PECA:
                 return partida.comprarPeca();
-
             case PASSAR_VEZ:
-                partida.passarVez();
-                return ResultadoJogada.VEZ_PASSADA;
-
+                return partida.passarVez();
             default:
                 throw new IllegalArgumentException("Ação inválida.");
         }
@@ -148,29 +144,38 @@ public class GameController {
     private void tratarResultado(ResultadoJogada resultado) {
         switch (resultado) {
             case JOGADA_VALIDA :
-                    System.out.println("Peça jogada com sucesso.");
-                    break;
+                System.out.println("Peça jogada com sucesso.");
+                break;
             case GATO :
-                    System.out.println(" MIAAALLL, GATO! perdeu a vez.");
-                    break;
+                System.out.println(" MIAAALLL, GATO! perdeu a vez.");
+                break;
             case NAO_POSSUI_PECA :
-                    System.out.println("Essa peça não pertence ao jogador.");
-                    break;
+                System.out.println("Essa peça não pertence ao jogador.");
+                break;
+            case POSSUI_JOGADA_VALIDA:
+                System.out.println("Voce possui jogada valida e não pode comprar a peça");
+                break;
             case COMPRA_REALIZADA :
-                    System.out.println("Você comprou uma peça.");
-                    break;
+                System.out.println("Você comprou uma peça.");
+                break;
             case COMPROU_JA_REALIZADA:
                 System.out.println("voce ja comprou uma peça no turno");
                 break;
             case BARALHO_VAZIO:
                 System.out.println("O baralho está vazio");
                 break;
+            case NAO_PODE_PASSAR_SEM_COMPRAR:
+                System.out.println("Você precisa comprar uma peça antes de passar a vez.");
+                break;
             case VEZ_PASSADA :
-                    System.out.println("Você passou a vez.");
-                    break;
+                System.out.println("Você passou a vez.");
+                break;
+            case NAO_PODE_PASSAR:
+                System.out.println("Você possui uma jogada valida e não pode passar a vez.");
+                break;
             case PARTIDA_ENCERRADA :
-                    System.out.println("A rodada terminou.");
-                    break;
+                System.out.println("A rodada terminou.");
+                break;
         }
     }
 
@@ -202,27 +207,5 @@ public class GameController {
         mostrarPlacar();
     }
 }
-
-
-
-/*
-private void comprarPeca(){
-    if(!partida.podeComprar()){
-        System.out.println(" O baralho acabou. ");
-        return;
-    }
-
-    partida.comprarPeca();
-
-    System.out.println("""
-            Você comprou uma peça.
-            Agora escolha jogar ou passar.
-            """);
-}
-private void passarVez(){
-    partida.passarVez();
-    System.out.println("Você passou a vez.");
-}
-*/
 
 

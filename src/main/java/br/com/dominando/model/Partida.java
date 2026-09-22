@@ -72,6 +72,11 @@ public class Partida {
     }
 
     public ResultadoJogada comprarPeca() {
+        Jogador jogador = getJogadorVez();
+
+        if (mesaService.existeJogadaPara(jogador)){
+         return ResultadoJogada.POSSUI_JOGADA_VALIDA;
+        }
         if (comprouNoTurno) {
             return ResultadoJogada.COMPROU_JA_REALIZADA;
         }
@@ -79,14 +84,24 @@ public class Partida {
             return ResultadoJogada.BARALHO_VAZIO;
         }
 
-        getJogadorVez().comprarDoBaralho(baralho);
+        jogador.comprarDoBaralho(baralho);
         comprouNoTurno = true;
 
         return ResultadoJogada.COMPRA_REALIZADA;
     }
 
-    public void passarVez() {
+    public ResultadoJogada passarVez() {
+        Jogador jogador = getJogadorVez();
+
+        if (mesaService.existeJogadaPara(jogador) && !comprouNoTurno){
+            return ResultadoJogada.NAO_PODE_PASSAR;
+        }
+        if (!comprouNoTurno && podeComprar()){
+            return ResultadoJogada.NAO_PODE_PASSAR_SEM_COMPRAR;
+        }
+
         finalizarTurno();
+        return ResultadoJogada.VEZ_PASSADA;
     }
 
 
@@ -160,13 +175,13 @@ public class Partida {
     }
 
     private void definirPrimeiroJogador() {
-        int maiorCarroca = -1;
+        int maiorbucha = -1;
         int indiceMaior = 0;
 
         for (int i = 0; i < jogadores.size(); i++) {
-            int carroca = maiorBucha(jogadores.get(i));
-            if (carroca > maiorCarroca) {
-                maiorCarroca = carroca;
+            int bucha = maiorBucha(jogadores.get(i));
+            if (bucha > maiorbucha) {
+                maiorbucha = bucha;
                 indiceMaior = i;
             }
         }
