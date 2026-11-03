@@ -4,16 +4,14 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-import org.w3c.dom.Text;
+
+import br.com.dominando.frontend.ui.OpeningButtons;
 
 public class OpeningScreen extends ScreenAdapter {
 
@@ -24,6 +22,7 @@ public class OpeningScreen extends ScreenAdapter {
     private final Stage stage;
     private final Texture backgroundTexture;
     private final Texture logoTexture;
+    private final OpeningButtons buttons;
 
     public OpeningScreen() {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -33,6 +32,10 @@ public class OpeningScreen extends ScreenAdapter {
 
         addImage(backgroundTexture, 0f, 0f, 1920f, 1081f);
         addImage(logoTexture, 534.002f, 70f, 851.775f, 620f);
+
+        buttons = new OpeningButtons();
+        stage.addActor(buttons.createEnterButton(() -> Gdx.app.log("OpeningScreen", "Entrar no Bar Clicado")));
+        stage.addActor(buttons.createSettingsButton(() -> Gdx.app.log("OpeningScreen", "Configuracao Clicada")));
     }
 
     private Texture loadTexture(String path) {
@@ -83,6 +86,7 @@ public class OpeningScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         stage.dispose();
+        buttons.dispose();
         backgroundTexture.dispose();
         logoTexture.dispose();
     }
