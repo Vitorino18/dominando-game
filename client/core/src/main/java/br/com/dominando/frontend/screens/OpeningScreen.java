@@ -27,7 +27,7 @@ public class OpeningScreen extends ScreenAdapter {
     private final OpeningButtons buttons;
     private final SettingsPanel settingsPanel;
 
-    public OpeningScreen() {
+    public OpeningScreen(Runnable onEnter) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         backgroundTexture = loadTexture("ui/opening/fundo-engradados.png");
@@ -39,7 +39,7 @@ public class OpeningScreen extends ScreenAdapter {
         settingsPanel = new SettingsPanel(new GameSettings());
 
         buttons = new OpeningButtons();
-        stage.addActor(buttons.createEnterButton(() -> Gdx.app.log("OpeningScreen", "Entrar no Bar Clicado")));
+        stage.addActor(buttons.createEnterButton(onEnter));
         stage.addActor(buttons.createSettingsButton(() -> settingsPanel.open(stage)));
     }
 

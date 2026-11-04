@@ -1,21 +1,42 @@
 package br.com.dominando.frontend;
 
 import com.badlogic.gdx.Game;
-import br.com.dominando.frontend.screens.OpeningScreen;
+import com.badlogic.gdx.Gdx;
 
+import br.com.dominando.frontend.screens.OpeningScreen;
+import br.com.dominando.frontend.screens.PairingScreen;
 public class DesceUmaGame extends Game {
+
+    private OpeningScreen openingScreen;
+    private PairingScreen pairingScreen;
 
     @Override
     public void create() {
-        setScreen(new OpeningScreen());
+        openingScreen = new OpeningScreen(() -> Gdx.app.postRunnable(this::showPairing));
+        setScreen(openingScreen);
+    }
+
+    private void showPairing() {
+        if (pairingScreen == null) {
+            pairingScreen = new PairingScreen(() -> Gdx.app.postRunnable(this::showOpening));
+        }
+        setScreen(pairingScreen);
+    }
+
+    private void showOpening() {
+        setScreen(openingScreen);
     }
 
     @Override
     public void dispose() {
-        super.dispose();
+        setScreen(null);
 
-        if (getScreen() != null) {
-            getScreen().dispose();
+        if (pairingScreen != null) {
+            pairingScreen.dispose();
+        }
+
+        if (openingScreen != null) {
+            openingScreen.dispose();
         }
     }
 }
