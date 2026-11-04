@@ -1,4 +1,6 @@
 package br.com.dominando.frontend.screens;
+import br.com.dominando.frontend.settings.GameSettings;
+import br.com.dominando.frontend.ui.SettingsPanel;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
@@ -23,6 +25,7 @@ public class OpeningScreen extends ScreenAdapter {
     private final Texture backgroundTexture;
     private final Texture logoTexture;
     private final OpeningButtons buttons;
+    private final SettingsPanel settingsPanel;
 
     public OpeningScreen() {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -33,9 +36,11 @@ public class OpeningScreen extends ScreenAdapter {
         addImage(backgroundTexture, 0f, 0f, 1920f, 1081f);
         addImage(logoTexture, 534.002f, 70f, 851.775f, 620f);
 
+        settingsPanel = new SettingsPanel(new GameSettings());
+
         buttons = new OpeningButtons();
         stage.addActor(buttons.createEnterButton(() -> Gdx.app.log("OpeningScreen", "Entrar no Bar Clicado")));
-        stage.addActor(buttons.createSettingsButton(() -> Gdx.app.log("OpeningScreen", "Configuracao Clicada")));
+        stage.addActor(buttons.createSettingsButton(() -> settingsPanel.open(stage)));
     }
 
     private Texture loadTexture(String path) {
@@ -78,6 +83,8 @@ public class OpeningScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        settingsPanel.close();
+
         if (Gdx.input.getInputProcessor() == stage) {
             Gdx.input.setInputProcessor(null);
         }
@@ -85,6 +92,9 @@ public class OpeningScreen extends ScreenAdapter {
 
     @Override
     public void dispose() {
+        hide();
+
+        settingsPanel.dispose();
         stage.dispose();
         buttons.dispose();
         backgroundTexture.dispose();
