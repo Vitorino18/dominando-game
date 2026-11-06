@@ -46,7 +46,7 @@ public class PairingScreen extends ScreenAdapter {
     private final TextButton joinButton;
     private final Label feedback;
 
-    public PairingScreen(Runnable onBack) {
+    public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
@@ -100,7 +100,7 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 finishTyping();
-                feedback.setText("Nome preenchido. Criação de mesa ainda não conectada.");
+                onCreate.run();
             }
         });
 
