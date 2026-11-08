@@ -16,6 +16,9 @@ public class MatchScreen extends ScreenAdapter {
     private final Texture backgroundTexture;
     private Image background;
     private float entranceTime;
+    private final Texture seatedTexture;
+    private final Image seatedBackground;
+
 
     private void updateEntrance() {
         float fadeProgress = Math.min(entranceTime / 0.8f, 1f);
@@ -28,11 +31,19 @@ public class MatchScreen extends ScreenAdapter {
         float scale = 1f + 0.12f * movement;
         float width = WIDTH * scale;
         float height = HEIGHT * scale;
-        float x = (WIDTH - width) * 0.5f;
-        float y = (HEIGHT - height) * 0.45f;
 
-        background.setBounds(x, y, width, height);
+        background.setBounds((WIDTH - width) * 0.5f, (HEIGHT - height) * 0.45f, width, height);
+
+        float seatedProgress = Math.max(0f, Math.min((entranceTime - 2f) / 0.9f, 1f));
+
+        seatedBackground.getColor().a = smooth(seatedProgress);
+        background.setVisible(seatedProgress < 1f);
     }
+
+    private float smooth(float progress) {
+        return progress * progress * (3f - 2f * progress);
+    }
+
     public MatchScreen() {
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -44,6 +55,16 @@ public class MatchScreen extends ScreenAdapter {
         background.setTouchable(Touchable.disabled);
 
         stage.addActor(background);
+
+        seatedTexture = new Texture(Gdx.files.internal("ui/match/cenario-sentado.png"));
+        seatedTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        seatedBackground = new Image(seatedTexture);
+        seatedBackground.setBounds(0f, 0f, WIDTH, HEIGHT);
+        seatedBackground.setTouchable(Touchable.disabled);
+        seatedBackground.getColor().a = 0f;
+
+        stage.addActor(seatedBackground);
     }
 
     @Override
@@ -58,7 +79,7 @@ public class MatchScreen extends ScreenAdapter {
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
 
-        entranceTime = Math.min(entranceTime + dt, 2f);
+        entranceTime = Math.min(entranceTime + dt, 2.9f);
         updateEntrance();
 
         ScreenUtils.clear(0f, 0f, 0f, 1f);
@@ -85,5 +106,6 @@ public class MatchScreen extends ScreenAdapter {
         hide();
         stage.dispose();
         backgroundTexture.dispose();
+        seatedTexture.dispose();
     }
 }
