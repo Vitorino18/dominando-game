@@ -6,12 +6,14 @@ import com.badlogic.gdx.Gdx;
 import br.com.dominando.frontend.screens.OpeningScreen;
 import br.com.dominando.frontend.screens.PairingScreen;
 import br.com.dominando.frontend.screens.WaitingScreen;
+import br.com.dominando.frontend.screens.MatchIntroScreen;
 
 public class DesceUmaGame extends Game {
 
     private OpeningScreen openingScreen;
     private PairingScreen pairingScreen;
     private WaitingScreen waitingScreen;
+    private MatchIntroScreen matchIntroScreen;
 
     @Override
     public void create() {
@@ -28,7 +30,7 @@ public class DesceUmaGame extends Game {
 
     private void showWaitingDemo() {
         if (waitingScreen == null) {
-            waitingScreen = new WaitingScreen("51A7", () -> Gdx.app.postRunnable(this::showPairing));
+            waitingScreen = new WaitingScreen("51A7", () -> Gdx.app.postRunnable(this::showPairing), () -> Gdx.app.postRunnable(this::showMatchIntroDemo));
         }
         setScreen(waitingScreen);
     }
@@ -37,9 +39,21 @@ public class DesceUmaGame extends Game {
         setScreen(openingScreen);
     }
 
+    private void showMatchIntroDemo() {
+        Gdx.app.log("DesceUmaGame", "Abrindo transicao");
+
+        if (matchIntroScreen == null) {matchIntroScreen = new MatchIntroScreen(() -> Gdx.app.postRunnable(this::showPairing));
+        }
+
+        setScreen(matchIntroScreen);
+    }
     @Override
     public void dispose() {
         setScreen(null);
+
+        if (matchIntroScreen != null) {
+            matchIntroScreen.dispose();
+        }
 
         if (waitingScreen != null) {
             waitingScreen.dispose();

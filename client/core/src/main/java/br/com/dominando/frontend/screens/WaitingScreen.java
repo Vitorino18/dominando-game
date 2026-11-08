@@ -46,7 +46,7 @@ public class WaitingScreen extends ScreenAdapter {
 
     private final String roomCode;
 
-    public  WaitingScreen(String roomCode, Runnable onCancel){
+    public WaitingScreen(String roomCode, Runnable onCancel, Runnable onSimulateArrival){
         if (roomCode == null || roomCode.length() != 4) {
             throw new IllegalArgumentException("Espera-se um código de 4 caracteres");
         }
@@ -105,11 +105,7 @@ public class WaitingScreen extends ScreenAdapter {
             caps[i] = addImage(capTexture, 1332f + i * 78f, 716f, 60f, capHeight);
         }
 
-        addLabel(
-            "Aguardando o outro jogador...",
-            labelFont, cream,
-            1130f, 810f, 620f, 30f
-        );
+        addLabel("Aguardando o outro jogador...", labelFont, cream, 1130f, 810f, 620f, 30f);
 
         TextButton.TextButtonStyle cancelStyle = new TextButton.TextButtonStyle();
 
@@ -135,6 +131,26 @@ public class WaitingScreen extends ScreenAdapter {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 onCancel.run();
+            }
+        });
+
+        TextButton.TextButtonStyle simulateStyle = new TextButton.TextButtonStyle();
+
+        simulateStyle.font = labelFont;
+        simulateStyle.fontColor = brown;
+        simulateStyle.up = roundedBackground(420, 72, 18, 4, cream, 6);
+        simulateStyle.down = roundedBackground(420,72,18,4, Color.valueOf("DCC79C"), 6 );
+
+        TextButton simulateButton = new TextButton("SIMULAR CHEGADA", simulateStyle);
+        simulateButton.padBottom(6f);
+        place(simulateButton, 270f, 920f, 420f, 78f);
+        stage.addActor(simulateButton);
+
+        simulateButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                Gdx.app.log("WaitingScreen", "Simular chegada clicado");
+                onSimulateArrival.run();
             }
         });
     }
