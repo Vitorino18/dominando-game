@@ -9,6 +9,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import org.w3c.dom.Text;
+import com.badlogic.gdx.scenes.scene2d.Group;
+
+import br.com.dominando.frontend.ui.DominoAssets;
+import br.com.dominando.frontend.ui.DominoTile;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -25,6 +29,9 @@ public class MatchScreen extends ScreenAdapter {
     private final Texture tableTexture;
     private final Image floorBackground;
     private final Image tableImage;
+
+    private final DominoAssets dominoAssets;
+    private final Group tilesLayer;
 
 
     private void updateEntrance() {
@@ -56,6 +63,8 @@ public class MatchScreen extends ScreenAdapter {
 
         floorBackground.getColor().a = topAlpha;
         tableImage.getColor().a = topAlpha;
+
+        tilesLayer.setVisible(entranceTime >= 4.4f);
     }
 
     private float smooth(float progress) {
@@ -105,6 +114,55 @@ public class MatchScreen extends ScreenAdapter {
         tableImage.setVisible(false);
 
         stage.addActor(tableImage);
+
+        dominoAssets = new DominoAssets();
+
+        tilesLayer = new Group();
+        tilesLayer.setSize(WIDTH,HEIGHT);
+        tilesLayer.setTouchable(Touchable.disabled);
+        tilesLayer.setVisible(false);
+
+        stage.addActor(tilesLayer);
+        createDemoTiles();
+    }
+
+    private void createDemoTiles() {
+        tilesLayer.clearChildren();
+
+        int[][] demoHand = {
+            {6, 6},
+            {0, 6},
+            {2, 6},
+            {1, 3},
+            {2, 4},
+            {3, 5},
+            {0, 0}
+        };
+
+        for (int i = 0; i < demoHand.length; i++) {
+            DominoTile tile = new DominoTile(dominoAssets, demoHand[i][0], demoHand[i][1]);
+
+            float x = 616f + i * 100f;
+            float y = HEIGHT - 820f - 164f;
+
+            tile.setBounds(x, y, 88f, 164f);
+            tilesLayer.addActor(tile);
+        }
+
+        float opponentWidth = 55f;
+        float opponentHeight = 102.5f;
+        float gap = 12f;
+
+        float totalWidth = 7f * opponentWidth + 6f * gap;
+        float startX = (WIDTH - totalWidth) / 2f;
+
+        for (int i = 0; i < 7; i++) {
+            DominoTile tile = new DominoTile(dominoAssets, 0, 0);
+            tile.setFaceDown(true);
+
+            tile.setBounds(startX + i * (opponentWidth + gap), HEIGHT - 132f - opponentHeight, opponentWidth, opponentHeight);
+            tilesLayer.addActor(tile);
+        }
     }
 
     @Override
@@ -149,5 +207,6 @@ public class MatchScreen extends ScreenAdapter {
         seatedTexture.dispose();
         floorTexture.dispose();
         tableTexture.dispose();
+        dominoAssets.dispose();
     }
 }
