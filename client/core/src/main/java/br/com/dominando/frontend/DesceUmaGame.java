@@ -7,6 +7,7 @@ import br.com.dominando.frontend.screens.OpeningScreen;
 import br.com.dominando.frontend.screens.PairingScreen;
 import br.com.dominando.frontend.screens.WaitingScreen;
 import br.com.dominando.frontend.screens.MatchIntroScreen;
+import br.com.dominando.frontend.screens.MatchScreen;
 
 public class DesceUmaGame extends Game {
 
@@ -14,6 +15,7 @@ public class DesceUmaGame extends Game {
     private PairingScreen pairingScreen;
     private WaitingScreen waitingScreen;
     private MatchIntroScreen matchIntroScreen;
+    private MatchScreen matchScreen;
 
     @Override
     public void create() {
@@ -40,13 +42,19 @@ public class DesceUmaGame extends Game {
     }
 
     private void showMatchIntroDemo() {
-        Gdx.app.log("DesceUmaGame", "Abrindo transicao");
+       if (matchScreen == null) {
+           matchScreen = new MatchScreen();
+       }
 
-        if (matchIntroScreen == null) {matchIntroScreen = new MatchIntroScreen(() -> Gdx.app.postRunnable(this::showPairing));
-        }
-
-        setScreen(matchIntroScreen);
+       if (matchIntroScreen == null) {
+           matchIntroScreen = new MatchIntroScreen(() -> Gdx.app.postRunnable(this::showMatchDemo));
+       }
+       setScreen(matchIntroScreen);
     }
+    private void showMatchDemo() {
+        setScreen(matchScreen);
+    }
+
     @Override
     public void dispose() {
         setScreen(null);
@@ -65,6 +73,10 @@ public class DesceUmaGame extends Game {
 
         if (openingScreen != null) {
             openingScreen.dispose();
+        }
+
+        if (matchScreen != null) {
+            matchScreen.dispose();
         }
     }
 }
