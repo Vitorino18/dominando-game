@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 
 import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
+import br.com.dominando.frontend.ui.CavaView;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -32,6 +33,8 @@ public class MatchScreen extends ScreenAdapter {
 
     private final DominoAssets dominoAssets;
     private final Group tilesLayer;
+
+    private final CavaView cavaView;
 
 
     private void updateEntrance() {
@@ -124,6 +127,15 @@ public class MatchScreen extends ScreenAdapter {
 
         stage.addActor(tilesLayer);
         createDemoTiles();
+
+        cavaView = new CavaView(dominoAssets, 14);
+        float cavaScale = 1.25f;
+
+        cavaView.setOrigin(0f, 0f);
+        cavaView.setScale(cavaScale);
+        cavaView.setPosition(490f, HEIGHT - 400f - 120f * cavaScale);
+
+        tilesLayer.addActor(cavaView);
     }
 
     private void createDemoTiles() {
@@ -208,5 +220,6 @@ public class MatchScreen extends ScreenAdapter {
         floorTexture.dispose();
         tableTexture.dispose();
         dominoAssets.dispose();
+        cavaView.dispose();
     }
 }
