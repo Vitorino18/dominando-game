@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
 import br.com.dominando.frontend.ui.CavaView;
+import br.com.dominando.frontend.ui.ScoreView;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -35,6 +36,10 @@ public class MatchScreen extends ScreenAdapter {
     private final Group tilesLayer;
 
     private final CavaView cavaView;
+
+    private final ScoreView playerScoreView;
+    private final ScoreView opponentScoreView;
+
 
 
     private void updateEntrance() {
@@ -136,6 +141,20 @@ public class MatchScreen extends ScreenAdapter {
         cavaView.setPosition(490f, HEIGHT - 400f - 120f * cavaScale);
 
         tilesLayer.addActor(cavaView);
+
+        playerScoreView = new ScoreView(false, 3);
+        opponentScoreView = new ScoreView(true, 2);
+
+        playerScoreView.setBounds(1320f, 65f, 176f, 144f);
+        playerScoreView.setOrigin(88f, 72f);
+        playerScoreView.setRotation(42.76f);
+
+        opponentScoreView.setBounds(470f, 880f, 176f, 144f);
+        opponentScoreView.setOrigin(88f, 72f);
+        opponentScoreView.setRotation(-133.16f);
+
+        tilesLayer.addActor(playerScoreView);
+        tilesLayer.addActor(opponentScoreView);
     }
 
     private void createDemoTiles() {
@@ -214,7 +233,10 @@ public class MatchScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
+
         stage.dispose();
+        playerScoreView.dispose();
+        opponentScoreView.dispose();
         backgroundTexture.dispose();
         seatedTexture.dispose();
         floorTexture.dispose();
