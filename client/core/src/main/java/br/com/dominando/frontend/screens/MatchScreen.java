@@ -15,6 +15,7 @@ import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
 import br.com.dominando.frontend.ui.CavaView;
 import br.com.dominando.frontend.ui.ScoreView;
+import br.com.dominando.frontend.ui.PlayerInfoView;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -34,11 +35,15 @@ public class MatchScreen extends ScreenAdapter {
 
     private final DominoAssets dominoAssets;
     private final Group tilesLayer;
+    private final Group hudLayer;
 
     private final CavaView cavaView;
 
     private final ScoreView playerScoreView;
     private final ScoreView opponentScoreView;
+
+    private final PlayerInfoView playerInfoView;
+    private final PlayerInfoView opponentInfoView;
 
 
 
@@ -73,6 +78,7 @@ public class MatchScreen extends ScreenAdapter {
         tableImage.getColor().a = topAlpha;
 
         tilesLayer.setVisible(entranceTime >= 4.4f);
+        hudLayer.setVisible(entranceTime >= 4.4f);
     }
 
     private float smooth(float progress) {
@@ -155,6 +161,26 @@ public class MatchScreen extends ScreenAdapter {
 
         tilesLayer.addActor(playerScoreView);
         tilesLayer.addActor(opponentScoreView);
+
+        hudLayer = new Group();
+        hudLayer.setSize(WIDTH, HEIGHT);
+        hudLayer.setTouchable(Touchable.disabled);
+        hudLayer.setVisible(false);
+
+        stage.addActor(hudLayer);
+
+        opponentInfoView = new PlayerInfoView(false, "Adversário", 7);
+        opponentInfoView.setPosition(48f, HEIGHT - 48f - PlayerInfoView.TOTAL_HEIGHT);
+
+        hudLayer.addActor(opponentInfoView);
+
+        playerInfoView = new PlayerInfoView(true, "Você", 7);
+        playerInfoView.setPosition(1544f, HEIGHT - 920f - PlayerInfoView.TOTAL_HEIGHT);
+
+        hudLayer.addActor(playerInfoView);
+
+        playerInfoView.setActiveTurn(true);
+        opponentInfoView.setActiveTurn(false);
     }
 
     private void createDemoTiles() {
@@ -235,6 +261,8 @@ public class MatchScreen extends ScreenAdapter {
         hide();
 
         stage.dispose();
+        playerInfoView.dispose();
+        opponentInfoView.dispose();
         playerScoreView.dispose();
         opponentScoreView.dispose();
         backgroundTexture.dispose();
