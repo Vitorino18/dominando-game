@@ -47,6 +47,14 @@ public class DominoTile extends Group {
         setValues(upper, lower);
     }
 
+    public int getUpperValue () {
+        return upper;
+    }
+
+    public int getLowerValue () {
+        return lower;
+    }
+
     public void setValues(int upper, int lower){
         if (upper < 0 || upper > 6 || lower < 0 || lower > 6) {
             throw new IllegalArgumentException("o valor visual deve estar entre 0 e 6");

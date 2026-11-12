@@ -29,6 +29,7 @@ public class MatchScreen extends ScreenAdapter {
     private static final float FIRST_STONE_WIDTH = 60f;
     private static final float FIRST_STONE_HEIGHT = 111.82f;
     private static final float FIRST_STONE_Y = HEIGHT - FIRST_STONE_TOP - FIRST_STONE_HEIGHT;
+    private static final float TILE_CONTACT_OFFSET = 10f;
     private final Stage stage;
     private final Texture backgroundTexture;
     private Image background;
@@ -60,6 +61,9 @@ public class MatchScreen extends ScreenAdapter {
     private boolean firstStonePlayed;
     private DominoTile opponentReplyTile;
     private boolean playerCanSelect = true;
+
+    private final DominoTile leftEndPreview;
+    private final DominoTile rightEndPreview;
 
 
 
@@ -158,6 +162,12 @@ public class MatchScreen extends ScreenAdapter {
         firstStoneTarget = createFirstStoneTarget();
         tilesLayer.addActor(firstStoneTarget);
 
+        leftEndPreview = createEndPreview();
+        rightEndPreview = createEndPreview();
+
+        tilesLayer.addActor(leftEndPreview);
+        tilesLayer.addActor(rightEndPreview);
+
         cavaView = new CavaView(dominoAssets, 14);
         float cavaScale = 1.25f;
 
@@ -200,6 +210,15 @@ public class MatchScreen extends ScreenAdapter {
 
         playerInfoView.setActiveTurn(true);
         opponentInfoView.setActiveTurn(false);
+    }
+
+    private DominoTile createEndPreview() {
+        DominoTile preview = new DominoTile(dominoAssets, 0, 0);
+        preview.setSize(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT);
+        preview.getColor().a = 0.42f;
+        preview.setTouchable(Touchable.disabled);
+        preview.setVisible(false);
+        return preview;
     }
 
     private Group createFirstStoneTarget() {
@@ -303,6 +322,49 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         firstStoneTarget.setVisible(!firstStonePlayed && selectedTile != null && selectedTile == openingTile);
+        updateEndPreviews();
+    }
+
+    private void updateEndPreviews() {
+        leftEndPreview.setVisible(false);
+        rightEndPreview.setVisible(false);
+
+        if (!firstStonePlayed || !playerCanSelect || selectedTile == null) {
+            return;
+        }
+
+        float leftEdgeX = openingTile.getX();
+        float rightEdgeX = opponentReplyTile.getX() + opponentReplyTile.getWidth() / 2f + opponentReplyTile.getHeight() / 2f;
+
+        showEndPreview(leftEndPreview, openingTile.getUpperValue(), leftEdgeX, true);
+        showEndPreview(rightEndPreview, opponentReplyTile.getUpperValue(), rightEdgeX, false);
+    }
+
+    private void showEndPreview(DominoTile preview, int endValue, float edgeX, boolean leftSide) {
+        int upper = selectedTile.getUpperValue();
+        int lower = selectedTile.getLowerValue();
+
+        if (upper != endValue && lower != endValue) {
+            return;
+        }
+
+        boolean doubleTile = upper == lower;
+        float rotation = 0f;
+        float horizontalWidth = FIRST_STONE_WIDTH;
+
+        if (!doubleTile) {
+            boolean upperFacesRight = leftSide ? upper == endValue : lower == endValue;
+            rotation = upperFacesRight ? -90f : 90f;
+            horizontalWidth = FIRST_STONE_HEIGHT;
+        }
+
+        float distance = horizontalWidth / 2f - TILE_CONTACT_OFFSET;
+        float centerX = leftSide ? edgeX - distance : edgeX + distance;
+
+        preview.setValues(upper, lower);
+        preview.setRotation(rotation);
+        preview.setPosition(centerX - FIRST_STONE_WIDTH / 2f, FIRST_STONE_Y);
+        preview.setVisible(true);
     }
 
     private void playFirstStone() {
@@ -338,8 +400,7 @@ public class MatchScreen extends ScreenAdapter {
         DominoTile tile = opponentReplyTile;
 
         float centerX = FIRST_STONE_X + FIRST_STONE_WIDTH + FIRST_STONE_HEIGHT / 2f;
-        float contactOffset = 10f;
-        float targetX = centerX - FIRST_STONE_WIDTH / 2f -  contactOffset;
+        float targetX = centerX - FIRST_STONE_WIDTH / 2f - TILE_CONTACT_OFFSET;
         float targetY = FIRST_STONE_Y;
         float duration = 0.32f;
 
