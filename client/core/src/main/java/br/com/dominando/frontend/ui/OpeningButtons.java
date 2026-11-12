@@ -70,8 +70,8 @@ public class OpeningButtons implements Disposable {
         style.pressedOffsetY = -2f;
 
         ImageButton button = new ImageButton(style);
-        button.getImageCell().size(56f, 56f);
-        button.setBounds(1748f,920f,112f,112f);
+        button.getImageCell().size(48f, 48f);
+        button.setBounds(1764f,936f,96f,96f);
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -95,11 +95,13 @@ public class OpeningButtons implements Disposable {
     }
 
     private TextureRegionDrawable createCircleBackground(String fill) {
-        Pixmap pixmap = new Pixmap(112,112, Pixmap.Format.RGBA8888);
+        Pixmap pixmap = new Pixmap(96,96, Pixmap.Format.RGBA8888);
+
         pixmap.setColor(brown);
-        pixmap.fillCircle(56,56,55);
+        pixmap.fillCircle(48,48,47);
+
         pixmap.setColor(Color.valueOf(fill));
-        pixmap.fillCircle(56,56,51);
+        pixmap.fillCircle(48,48,43);
 
         return createDrawable(pixmap);
     }
