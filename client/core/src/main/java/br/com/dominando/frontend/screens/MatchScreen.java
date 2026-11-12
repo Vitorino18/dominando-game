@@ -10,6 +10,8 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import org.w3c.dom.Text;
 import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 
 import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
@@ -44,6 +46,8 @@ public class MatchScreen extends ScreenAdapter {
 
     private final PlayerInfoView playerInfoView;
     private final PlayerInfoView opponentInfoView;
+
+    private DominoTile selectedTile;
 
 
 
@@ -133,7 +137,7 @@ public class MatchScreen extends ScreenAdapter {
 
         tilesLayer = new Group();
         tilesLayer.setSize(WIDTH,HEIGHT);
-        tilesLayer.setTouchable(Touchable.disabled);
+        tilesLayer.setTouchable(Touchable.childrenOnly);
         tilesLayer.setVisible(false);
 
         stage.addActor(tilesLayer);
@@ -203,6 +207,14 @@ public class MatchScreen extends ScreenAdapter {
             float y = HEIGHT - 820f - 164f;
 
             tile.setBounds(x, y, 88f, 164f);
+
+            tile.addListener(new ClickListener(){
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    setSelectedTile(selectedTile == tile ? null : tile);
+                }
+            });
+
             tilesLayer.addActor(tile);
         }
 
@@ -217,14 +229,33 @@ public class MatchScreen extends ScreenAdapter {
             DominoTile tile = new DominoTile(dominoAssets, 0, 0);
             tile.setFaceDown(true);
 
+            tile.setTouchable(Touchable.disabled);
+
             tile.setBounds(startX + i * (opponentWidth + gap), HEIGHT - 132f - opponentHeight, opponentWidth, opponentHeight);
             tilesLayer.addActor(tile);
+        }
+    }
+
+    private void setSelectedTile(DominoTile tile) {
+        if (selectedTile == tile) {
+            return;
+        }
+
+        if (selectedTile != null) {
+            selectedTile.setSelected(false);
+        }
+
+        selectedTile = tile;
+
+        if (selectedTile != null) {
+            selectedTile.setSelected(true);
         }
     }
 
     @Override
     public void show() {
         entranceTime = 0f;
+        setSelectedTile(null);
         updateEntrance();
 
         Gdx.input.setInputProcessor(stage);
