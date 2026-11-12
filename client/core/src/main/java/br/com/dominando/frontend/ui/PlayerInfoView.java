@@ -125,7 +125,7 @@ public class PlayerInfoView extends Group implements Disposable {
         }
 
         String suffix = displayedCount == 1 ? "pedra" : "pedras";
-        statusLabel.setText(displayedCount + suffix);
+        statusLabel.setText(displayedCount + " " + suffix);
     }
 
     private void place(com.badlogic.gdx.scenes.scene2d.Actor actor, float x, float top, float width, float height) {

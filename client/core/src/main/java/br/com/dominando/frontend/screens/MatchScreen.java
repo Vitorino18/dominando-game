@@ -65,6 +65,8 @@ public class MatchScreen extends ScreenAdapter {
     private final DominoTile leftEndPreview;
     private final DominoTile rightEndPreview;
 
+    private int playerHandCount;
+
 
 
     private void updateEntrance() {
@@ -216,7 +218,13 @@ public class MatchScreen extends ScreenAdapter {
         DominoTile preview = new DominoTile(dominoAssets, 0, 0);
         preview.setSize(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT);
         preview.getColor().a = 0.42f;
-        preview.setTouchable(Touchable.disabled);
+        preview.setTouchable(Touchable.enabled);
+        preview.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                playSelectedTileAt(preview);
+            }
+        });
         preview.setVisible(false);
         return preview;
     }
@@ -257,6 +265,8 @@ public class MatchScreen extends ScreenAdapter {
             {3, 5},
             {0, 0}
         };
+
+        playerHandCount = demoHand.length;
 
         for (int i = 0; i < demoHand.length; i++) {
             DominoTile tile = new DominoTile(dominoAssets, demoHand[i][0], demoHand[i][1]);
@@ -388,7 +398,8 @@ public class MatchScreen extends ScreenAdapter {
                 Actions.sizeTo(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT, duration, Interpolation.sineOut)
             ),
             Actions.run(() -> {
-                playerInfoView.setDisplayedCount(6);
+                playerHandCount--;
+                playerInfoView.setDisplayedCount(playerHandCount);
                 playerInfoView.setActiveTurn(false);
                 opponentInfoView.setActiveTurn(true);
                 playOpponentReply();
@@ -421,6 +432,38 @@ public class MatchScreen extends ScreenAdapter {
                 opponentInfoView.setActiveTurn(false);
                 playerInfoView.setActiveTurn(true);
                 playerCanSelect = true;
+            })
+        ));
+    }
+
+    private void playSelectedTileAt(DominoTile preview) {
+        if (!playerCanSelect || selectedTile == null || !preview.isVisible()) {
+            return;
+        }
+
+        DominoTile tile = selectedTile;
+        float targetX = preview.getX();
+        float targetY = preview.getY();
+        float targetRotation = preview.getRotation();
+        float duration = 0.32f;
+
+        playerCanSelect = false;
+        setSelectedTile(null);
+
+        tile.setTouchable(Touchable.disabled);
+        tile.toFront();
+
+        tile.addAction(Actions.sequence(
+            Actions.parallel(
+                Actions.moveTo(targetX, targetY, duration, Interpolation.sineOut),
+                Actions.sizeTo(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT, duration, Interpolation.sineOut),
+                Actions.rotateTo(targetRotation, duration, Interpolation.sineOut)
+            ),
+            Actions.run(() -> {
+                playerHandCount--;
+                playerInfoView.setDisplayedCount(playerHandCount);
+                playerInfoView.setActiveTurn(false);
+                opponentInfoView.setActiveTurn(true);
             })
         ));
     }
