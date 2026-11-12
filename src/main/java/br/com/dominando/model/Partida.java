@@ -11,17 +11,29 @@ public class Partida {
     private final Baralho baralho;
     private final Mesa mesa;
     private boolean comprouNoTurno = true;
+    private Peca buchaObrigatoria;
 
     private final MesaService mesaService;
     private final TurnoService turnoService;
     private final PontuacaoService pontuacaoService;
 
+    private final Jogador jogadorInicial;
     private final List<Jogador> jogadores;
 
+
     public Partida(List<String> nomesJogadores) {
-        if (nomesJogadores.size() < 2 || nomesJogadores.size() > 4) {
+        this(criarJogadores(nomesJogadores), null);
+    }
+
+    // construtor dos jogadores da partida inicial //
+    public Partida(List<Jogador> jogadores, Jogador jogadorInicial){
+        if (jogadores.size() < 2 || jogadores.size() > 4) {
             throw new IllegalArgumentException("A partida deve ter entre 2 e 4 jogadores.");
         }
+        if (jogadorInicial != null && !jogadores.contains(jogadorInicial)) {
+            throw new IllegalArgumentException("O jogador inicial precisa participar da partida.");
+        }
+
         this.baralho = new Baralho();
         this.mesa = new Mesa();
 
@@ -29,22 +41,41 @@ public class Partida {
         this.turnoService = new TurnoService();
         this.pontuacaoService = new PontuacaoService();
 
-        this.jogadores = new ArrayList<>();
+        this.jogadores = new ArrayList<>(jogadores);
+        this.jogadorInicial = jogadorInicial;
+    }
+
+    private static List<Jogador> criarJogadores(List<String> nomesJogadores) {
+        List<Jogador> jogadores = new ArrayList<>();
+
         for (String nome : nomesJogadores) {
             jogadores.add(new Jogador(nome));
         }
+        return jogadores;
     }
 
 
     // Açoes do jogo //
     public void iniciarPartida() {
         baralho.embaralhar();
+
+        for (Jogador jogador : jogadores) {
+            jogador.limparMao();
+        }
+
         for (int rodada = 0; rodada < 7; rodada++) {
             for (Jogador jogador : jogadores) {
                 jogador.comprarDoBaralho(baralho);
             }
         }
-        definirPrimeiroJogador();
+
+        if (jogadorInicial == null) {
+            definirPrimeiroJogador();
+        } else {
+            int indice = jogadores.indexOf(jogadorInicial);
+            turnoService.definirPrimeiroJogador(indice);
+        }
+
         comprouNoTurno = false;
     }
 
@@ -54,6 +85,9 @@ public class Partida {
         if (!jogador.possuiPeca(peca)) {
             return ResultadoJogada.NAO_POSSUI_PECA;
         }
+        if (buchaObrigatoria != null && !peca.equals(buchaObrigatoria)) {
+            return ResultadoJogada.DEVE_JOGAR_MAIOR_BUCHA;
+        }
         if (!mesaService.jogadaValida(peca, lado)) {
             jogador.registrarGatos();
             finalizarTurno();
@@ -61,6 +95,7 @@ public class Partida {
         }
 
         mesaService.jogarPeca(peca, lado);
+        buchaObrigatoria = null;
         jogador.removerPeca(peca);
 
         if (jogador.quantidadePecas() == 0) {
@@ -68,6 +103,7 @@ public class Partida {
         }
 
         finalizarTurno();
+
         return ResultadoJogada.JOGADA_VALIDA;
     }
 
@@ -112,7 +148,7 @@ public class Partida {
     }
 
     public List<Jogador> getJogadores() {
-        return jogadores;
+        return List.copyOf(jogadores);
     }
 
     public Mesa getMesa() {
@@ -158,7 +194,7 @@ public class Partida {
         return null;
     }
 
-    public Jogador getVencedorRodadaTravada() {
+    public List<Jogador> getVencedorRodadaTravada() {
         return pontuacaoService.vencedorRodadaTravada(jogadores);
     }
 
@@ -176,28 +212,50 @@ public class Partida {
 
     private void definirPrimeiroJogador() {
         int maiorbucha = -1;
+        int maiorValor = -1;
         int indiceMaior = 0;
+        Peca pecaObrigatoria = null;
 
         for (int i = 0; i < jogadores.size(); i++) {
-            int bucha = maiorBucha(jogadores.get(i));
-            if (bucha > maiorbucha) {
-                maiorbucha = bucha;
-                indiceMaior = i;
+            for (Peca peca : jogadores.get(i).getMao()) {
+               // maior bucha //
+                if (peca.bucha() && peca.getLadoA() > maiorbucha) {
+                    maiorbucha = peca.getLadoA();
+                    indiceMaior = i;
+                    pecaObrigatoria = peca;
+                }
+                // Guarda a peça de maior valor como alternativa //
+                int valorPeca = peca.getLadoA() + peca.getLadoB();
+
+                if (valorPeca > maiorValor) {
+                    maiorValor = valorPeca;
+                }
             }
         }
+
+        // Se ninguém recebeu bucha, procura a peça de maior valor //
+        if (pecaObrigatoria == null) {
+            for (int i = 0; i < jogadores.size(); i++) {
+                for (Peca peca : jogadores.get(i).getMao()) {
+                    int valorPeca = peca.getLadoA() + peca.getLadoB();
+
+                    if (valorPeca == maiorValor) {
+                        indiceMaior = i;
+                        pecaObrigatoria = peca;
+                        break;
+                    }
+                }
+
+                if (pecaObrigatoria != null) {
+                    break;
+                }
+            }
+        }
+
         turnoService.definirPrimeiroJogador(indiceMaior);
+        buchaObrigatoria = pecaObrigatoria;
     }
 
-    private int maiorBucha(Jogador jogador) {
-        int maior = -1;
-
-        for (Peca peca : jogador.getMao()) {
-            if (peca.bucha() && peca.getLadoA() > maior) {
-                maior = peca.getLadoA();
-            }
-        }
-        return maior;
-    }
 
     @Override
     public String toString() {

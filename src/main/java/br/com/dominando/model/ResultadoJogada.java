@@ -6,6 +6,7 @@ public enum ResultadoJogada {
     GATO,
     NAO_POSSUI_PECA,
     POSSUI_JOGADA_VALIDA,
+    DEVE_JOGAR_MAIOR_BUCHA,
 
     // BARALHO //
     COMPROU_JA_REALIZADA,
