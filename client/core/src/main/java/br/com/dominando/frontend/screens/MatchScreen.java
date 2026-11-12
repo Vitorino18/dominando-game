@@ -58,6 +58,8 @@ public class MatchScreen extends ScreenAdapter {
     private DominoTile openingTile;
     private final Group firstStoneTarget;
     private boolean firstStonePlayed;
+    private DominoTile opponentReplyTile;
+    private boolean playerCanSelect = true;
 
 
 
@@ -252,7 +254,7 @@ public class MatchScreen extends ScreenAdapter {
             tile.addListener(new ClickListener(){
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
-                    if (firstStonePlayed) {
+                    if (!playerCanSelect) {
                         return;
                     }
 
@@ -278,6 +280,10 @@ public class MatchScreen extends ScreenAdapter {
 
             tile.setBounds(startX + i * (opponentWidth + gap), HEIGHT - 132f - opponentHeight, opponentWidth, opponentHeight);
             tilesLayer.addActor(tile);
+
+            if (i == 0) {
+                opponentReplyTile = tile;
+            }
         }
     }
 
@@ -305,6 +311,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         firstStonePlayed = true;
+        playerCanSelect = false;
         DominoTile tile = openingTile;
         setSelectedTile(null);
 
@@ -322,6 +329,37 @@ public class MatchScreen extends ScreenAdapter {
                 playerInfoView.setDisplayedCount(6);
                 playerInfoView.setActiveTurn(false);
                 opponentInfoView.setActiveTurn(true);
+                playOpponentReply();
+            })
+        ));
+    }
+
+    private void playOpponentReply() {
+        DominoTile tile = opponentReplyTile;
+
+        float centerX = FIRST_STONE_X + FIRST_STONE_WIDTH + FIRST_STONE_HEIGHT / 2f;
+        float contactOffset = 10f;
+        float targetX = centerX - FIRST_STONE_WIDTH / 2f -  contactOffset;
+        float targetY = FIRST_STONE_Y;
+        float duration = 0.32f;
+
+        tile.addAction(Actions.sequence(
+            Actions.delay(0.65f),
+            Actions.run(() -> {
+                tile.setValues(3,6);
+                tile.setFaceDown(false);
+                tile.toFront();
+            }),
+            Actions.parallel(
+                Actions.moveTo(targetX, targetY, duration, Interpolation.sineOut),
+                Actions.sizeTo(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT, duration, Interpolation.sineOut),
+                Actions.rotateTo(-90f, duration, Interpolation.sineOut)
+            ),
+            Actions.run(() -> {
+                opponentInfoView.setDisplayedCount(6);
+                opponentInfoView.setActiveTurn(false);
+                playerInfoView.setActiveTurn(true);
+                playerCanSelect = true;
             })
         ));
     }
