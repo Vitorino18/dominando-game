@@ -12,6 +12,8 @@ import org.w3c.dom.Text;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.math.Interpolation;
+import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 
 import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
@@ -22,6 +24,11 @@ import br.com.dominando.frontend.ui.PlayerInfoView;
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
     private static final float HEIGHT = 1080f;
+    private static final float FIRST_STONE_X = 930f;
+    private static final float FIRST_STONE_TOP = 300f;
+    private static final float FIRST_STONE_WIDTH = 60f;
+    private static final float FIRST_STONE_HEIGHT = 111.82f;
+    private static final float FIRST_STONE_Y = HEIGHT - FIRST_STONE_TOP - FIRST_STONE_HEIGHT;
     private final Stage stage;
     private final Texture backgroundTexture;
     private Image background;
@@ -48,6 +55,9 @@ public class MatchScreen extends ScreenAdapter {
     private final PlayerInfoView opponentInfoView;
 
     private DominoTile selectedTile;
+    private DominoTile openingTile;
+    private final Group firstStoneTarget;
+    private boolean firstStonePlayed;
 
 
 
@@ -143,6 +153,9 @@ public class MatchScreen extends ScreenAdapter {
         stage.addActor(tilesLayer);
         createDemoTiles();
 
+        firstStoneTarget = createFirstStoneTarget();
+        tilesLayer.addActor(firstStoneTarget);
+
         cavaView = new CavaView(dominoAssets, 14);
         float cavaScale = 1.25f;
 
@@ -187,6 +200,30 @@ public class MatchScreen extends ScreenAdapter {
         opponentInfoView.setActiveTurn(false);
     }
 
+    private Group createFirstStoneTarget() {
+        float paddingX = 32f;
+        float paddingY = 24f;
+
+        Group target = new Group();
+        target.setBounds(FIRST_STONE_X - paddingX, FIRST_STONE_Y - paddingY, FIRST_STONE_WIDTH + 2f * paddingX, FIRST_STONE_HEIGHT + 2f * paddingY);
+        target.setVisible(false);
+
+        DominoTile preview = new DominoTile(dominoAssets, 6, 6);
+        preview.setBounds(paddingX, paddingY, FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT);
+        preview.getColor().a = 0.42f;
+        preview.setTouchable(Touchable.disabled);
+        target.addActor(preview);
+
+        target.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                playFirstStone();
+            }
+        });
+
+        return target;
+    }
+
     private void createDemoTiles() {
         tilesLayer.clearChildren();
 
@@ -208,9 +245,17 @@ public class MatchScreen extends ScreenAdapter {
 
             tile.setBounds(x, y, 88f, 164f);
 
+            if (demoHand[i][0] == 6 && demoHand[i][1] == 6) {
+                openingTile = tile;
+            }
+
             tile.addListener(new ClickListener(){
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
+                    if (firstStonePlayed) {
+                        return;
+                    }
+
                     setSelectedTile(selectedTile == tile ? null : tile);
                 }
             });
@@ -250,6 +295,35 @@ public class MatchScreen extends ScreenAdapter {
         if (selectedTile != null) {
             selectedTile.setSelected(true);
         }
+
+        firstStoneTarget.setVisible(!firstStonePlayed && selectedTile != null && selectedTile == openingTile);
+    }
+
+    private void playFirstStone() {
+        if (firstStonePlayed || openingTile == null || selectedTile != openingTile) {
+            return;
+        }
+
+        firstStonePlayed = true;
+        DominoTile tile = openingTile;
+        setSelectedTile(null);
+
+        tile.setTouchable(Touchable.disabled);
+        tile.toFront();
+
+        float duration = 0.32f;
+
+        tile.addAction(Actions.sequence(
+            Actions.parallel(
+                Actions.moveTo(FIRST_STONE_X, FIRST_STONE_Y, duration, Interpolation.sineOut),
+                Actions.sizeTo(FIRST_STONE_WIDTH, FIRST_STONE_HEIGHT, duration, Interpolation.sineOut)
+            ),
+            Actions.run(() -> {
+                playerInfoView.setDisplayedCount(6);
+                playerInfoView.setActiveTurn(false);
+                opponentInfoView.setActiveTurn(true);
+            })
+        ));
     }
 
     @Override
