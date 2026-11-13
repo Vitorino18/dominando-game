@@ -95,9 +95,6 @@ public class MatchIntroScreen extends ScreenAdapter {
         finalFade = new Image(blackTexture);
         finalFade.setBounds(0f, 0f, WIDTH, HEIGHT);
         stage.addActor(finalFade);
-
-        Label demo = createLabel("SIMULAÇÃO LOCAL", textFont, Color.WHITE, 650f, 1015f, 620f, 40f);
-        stage.addActor(demo);
     }
 
     private Image createHand(TextureRegion region) {
