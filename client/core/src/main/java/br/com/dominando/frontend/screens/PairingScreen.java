@@ -21,6 +21,9 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 
 public class PairingScreen extends ScreenAdapter {
 
@@ -49,8 +52,8 @@ public class PairingScreen extends ScreenAdapter {
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
-        labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
-        inputFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
+        labelFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
+        inputFont = createFont("fonts/NunitoSans-SemiBold.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 36);
         separatorFont = createFont("fonts/LilitaOne-Regular.ttf", 30);
 
@@ -78,8 +81,6 @@ public class PairingScreen extends ScreenAdapter {
 
         feedback = addLabel("", labelFont, cream,1070f, 968f, 740f, 64f, Align.center);
         feedback.setWrap(true);
-
-        TextButton backButton = createButton("VOLTAR", 48f, 48f, 200f, 72f);
 
         ChangeListener inputListener = new ChangeListener() {
             @Override
@@ -116,10 +117,16 @@ public class PairingScreen extends ScreenAdapter {
             }
         });
 
-        backButton.addListener(new ChangeListener() {
+        stage.addCaptureListener(new InputListener() {
             @Override
-            public void changed(ChangeEvent event, Actor actor) {
+            public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode != Input.Keys.ESCAPE && keycode != Input.Keys.BACK) {
+                    return false;
+                }
+
+                finishTyping();
                 onBack.run();
+                return true;
             }
         });
 
@@ -136,7 +143,6 @@ public class PairingScreen extends ScreenAdapter {
 
     private void setEnabled(TextButton button, boolean enabled) {
         button.setDisabled(!enabled);
-        button.setColor(1f, 1f, 1f, enabled ? 1f : 0.5f);
     }
 
     private TextField createInput(String placeholder, float x, float top) {
@@ -170,18 +176,19 @@ public class PairingScreen extends ScreenAdapter {
         return field;
     }
 
-    private TextButton createButton(
-        String text, float x, float top, float width, float height
-    ) {
+    private TextButton createButton(String text, float x, float top, float width, float height) {
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
 
         style.font = buttonFont;
         style.fontColor = green;
         style.disabledFontColor = green;
 
-        style.up = roundedBackground((int) width, (int) height, 18, 5, cream, 8);
+        TextureRegionDrawable normalBackground = roundedBackground((int) width, (int) height, 18, 5, cream, 8);
+
+        style.up = normalBackground;
+        style.disabled = normalBackground.tint(new Color(1f, 1f, 1f, 0.5f));
+
         style.down = roundedBackground((int) width, (int) height, 18, 5, Color.valueOf("DCC79C"), 8);
-        style.disabled = style.up;
         style.pressedOffsetY = -2f;
 
         TextButton button = new TextButton(text, style);
@@ -295,6 +302,7 @@ public class PairingScreen extends ScreenAdapter {
     @Override
     public void show() {
         Gdx.input.setInputProcessor(stage);
+        Gdx.input.setCatchKey(Input.Keys.BACK, true);
     }
 
     @Override
@@ -315,6 +323,7 @@ public class PairingScreen extends ScreenAdapter {
         if (Gdx.input.getInputProcessor() == stage) {
             finishTyping();
             Gdx.input.setInputProcessor(null);
+            Gdx.input.setCatchKey(Input.Keys.BACK, false);
         }
     }
 
