@@ -163,10 +163,10 @@ public class WaitingScreen extends ScreenAdapter {
         try {
             Gdx.app.getClipboard().setContents(roomCode);
             copyButton.setText("CÓDIGO COPIADO!");
-            copyFeedback.setText("código de demonstração copiado");
+            copyFeedback.setText("");
 
         } catch (RuntimeException exception) {
-            copyButton.setText("COPIAR CÓDIGO!");
+            copyButton.setText("COPIAR CÓDIGO");
             copyFeedback.setText("Não foi possível copiar. Tente Novamente");
             Gdx.app.error("WaitingScreen", "Falha ao copiar código", exception);
         }
