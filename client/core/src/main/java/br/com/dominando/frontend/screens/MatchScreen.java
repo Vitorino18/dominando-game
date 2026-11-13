@@ -86,18 +86,12 @@ public class MatchScreen extends ScreenAdapter {
         float seatedProgress = Math.max(0f, Math.min((entranceTime - 2f) / 0.9f, 1f));
         background.setVisible(seatedProgress < 1f);
 
-        float seatedExit = Math.max(0f, Math.min((entranceTime - 3.5f) / 0.35f, 1f));
-
+        float seatedExit = Math.max(0f, Math.min((entranceTime - 3.5f) / 0.9f, 1f));
         seatedBackground.getColor().a = smooth(seatedProgress) * (1f - smooth(seatedExit));
 
-        float topProgress = Math.max(0f, Math.min((entranceTime - 3.85f) / 0.55f, 1f));
-        float topAlpha = smooth(topProgress);
-        boolean showTop = entranceTime >= 3.85f;
+        boolean showTop = entranceTime >= 3.5f;
         floorBackground.setVisible(showTop);
         tableImage.setVisible(showTop);
-
-        floorBackground.getColor().a = topAlpha;
-        tableImage.getColor().a = topAlpha;
 
         tilesLayer.setVisible(entranceTime >= 4.4f);
         hudLayer.setVisible(entranceTime >= 4.4f);
@@ -127,8 +121,6 @@ public class MatchScreen extends ScreenAdapter {
         seatedBackground.setTouchable(Touchable.disabled);
         seatedBackground.getColor().a = 0f;
 
-        stage.addActor(seatedBackground);
-
         floorTexture = new Texture(Gdx.files.internal("ui/match/chao-vista-superior.png"));
         floorTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
@@ -138,7 +130,6 @@ public class MatchScreen extends ScreenAdapter {
         floorBackground = new Image(floorTexture);
         floorBackground.setBounds(0f, 0f, WIDTH, HEIGHT);
         floorBackground.setTouchable(Touchable.disabled);
-        floorBackground.getColor().a = 0f;
         floorBackground.setVisible(false);
 
         stage.addActor(floorBackground);
@@ -146,10 +137,10 @@ public class MatchScreen extends ScreenAdapter {
         tableImage = new Image(tableTexture);
         tableImage.setBounds(404f, HEIGHT - 25f - 1053f, 1140f, 1053f);
         tableImage.setTouchable(Touchable.disabled);
-        tableImage.getColor().a = 0f;
         tableImage.setVisible(false);
 
         stage.addActor(tableImage);
+        stage.addActor(seatedBackground);
 
         dominoAssets = new DominoAssets();
 
