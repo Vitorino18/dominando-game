@@ -43,6 +43,7 @@ public class WaitingScreen extends ScreenAdapter {
     private final TextButton copyButton;
     private final Label copyFeedback;
     private final Image[] caps = new Image[3];
+    private final BitmapFont inviteFont;
 
     private final String roomCode;
 
@@ -55,7 +56,8 @@ public class WaitingScreen extends ScreenAdapter {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
-        codeFont = createFont("fonts/NunitoSans-Regular.ttf", 72);
+        codeFont = createFont("fonts/NunitoSans-ExtraBold.ttf", 72);
+        inviteFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 36);
 
         addImage(loadTexture("ui/pairing/fundo-engradados.png"), 0f, 0f, 1920f, 1080f);
@@ -68,7 +70,7 @@ public class WaitingScreen extends ScreenAdapter {
         addSolid(brown, 960f, 0f, 6f, 1080f);
 
         addImage(loadTexture("ui/waiting/titulo-mesa-criada.png"), 1160f, 48f, 561f, 187f);
-        addLabel("ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ", labelFont, cream, 1130f, 280f, 620f, 30f);
+        addLabel("ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ", inviteFont, new Color(cream.r, cream.g, cream.b, 0.8f), 1130f, 280f, 620f, 30f);
 
         TextureRegionDrawable codeBackground = roundedBackground(128, 160, 18, 5, cream, 4);
 
@@ -105,7 +107,7 @@ public class WaitingScreen extends ScreenAdapter {
             caps[i] = addImage(capTexture, 1332f + i * 78f, 716f, 60f, capHeight);
         }
 
-        addLabel("Aguardando o outro jogador...", labelFont, cream, 1130f, 810f, 620f, 30f);
+        addLabel("Aguardando o outro jogador...", labelFont, Color.valueOf("f0dcd2"), 1130f, 810f, 620f, 30f);
 
         TextButton.TextButtonStyle cancelStyle = new TextButton.TextButtonStyle();
 
@@ -326,6 +328,7 @@ public class WaitingScreen extends ScreenAdapter {
         stage.dispose();
         labelFont.dispose();
         codeFont.dispose();
+        inviteFont.dispose();
         buttonFont.dispose();
         for (Texture texture : textures) {
             texture.dispose();
