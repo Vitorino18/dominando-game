@@ -61,9 +61,13 @@ public class PairingScreen extends ScreenAdapter {
     private final BitmapFont loadingMessageFont;
     private Label loadingTitle;
     private Label loadingMessage;
-    private final Group createErrorDialog = new Group();
+    private final Group tableErrorDialog = new Group();
     private final BitmapFont dialogButtonFont;
     private boolean simulateCreateFailure = false;
+    private Label tableErrorTitle;
+    private Label tableErrorMessage;
+    private Runnable retryTableAction;
+    private boolean simulateJoinFailure = false;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -152,11 +156,7 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 setCodeErrorVisible(false);
-                startTableLoading("ENTRANDO NA MESA...", "Aguarde enquanto conectamos você à mesa.", () -> {
-                        createLoading.setVisible(false);
-                        feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
-                    }
-                );
+                startJoiningTable();
             }
         });
 
@@ -167,8 +167,8 @@ public class PairingScreen extends ScreenAdapter {
                     return false;
                 }
 
-                if (createErrorDialog.isVisible()) {
-                    createErrorDialog.setVisible(false);
+                if (tableErrorDialog.isVisible()) {
+                    tableErrorDialog.setVisible(false);
                     return true;
                 }
 
@@ -182,17 +182,24 @@ public class PairingScreen extends ScreenAdapter {
             }
         });
 
+
         buildCreateLoading();
-        buildCreateErrorDialog(onCreate);
+        buildTableErrorDialog();
         refreshButtons();
     }
 
     private void startCreatingTable(Runnable onCreate) {
-        startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa.", () -> {
+        startTableLoading(
+            "CRIANDO MESA...",
+            "Aguarde enquanto preparamos sua mesa.",
+            () -> {
                 if (simulateCreateFailure) {
                     simulateCreateFailure = false;
-                    createLoading.setVisible(false);
-                    createErrorDialog.setVisible(true);
+                    showTableError(
+                        "NÃO FOI POSSÍVEL CRIAR",
+                        "Não conseguimos criar sua mesa. Tente\nnovamente.",
+                        () -> startCreatingTable(onCreate)
+                    );
                     return;
                 }
 
@@ -201,36 +208,61 @@ public class PairingScreen extends ScreenAdapter {
         );
     }
 
-    private void buildCreateErrorDialog(Runnable onCreate) {
-        createErrorDialog.setSize(WIDTH, HEIGHT);
-        createErrorDialog.setTouchable(Touchable.enabled);
+    private void startJoiningTable() {
+        startTableLoading("ENTRANDO NA MESA...", "Aguarde enquanto conectamos você à mesa.",
+            () -> {
+                if (simulateJoinFailure) {
+                    simulateJoinFailure = false;
+                    showTableError("NÃO FOI POSSÍVEL ENTRAR", "Não conseguimos entrar nesta mesa. Confira o\ncódigo e tente novamente.", this::startJoiningTable);
+                    return;
+                }
+
+                createLoading.setVisible(false);
+                feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
+            }
+        );
+    }
+
+    private void showTableError(String title, String message, Runnable onRetry) {
+        createLoading.setVisible(false);
+        tableErrorTitle.setText(title);
+        tableErrorMessage.setText(message);
+        retryTableAction = onRetry;
+        tableErrorDialog.setVisible(true);
+    }
+
+    private void buildTableErrorDialog() {
+        tableErrorDialog.setSize(WIDTH, HEIGHT);
+        tableErrorDialog.setTouchable(Touchable.enabled);
 
         Image dimmer = new Image(solid(new Color(0f, 0f, 0f, 0.5f)));
         place(dimmer, 0f, 0f, WIDTH, HEIGHT);
-        createErrorDialog.addActor(dimmer);
+        tableErrorDialog.addActor(dimmer);
 
         Image panel = new Image(roundedBackground(640, 320, 24, 4, cream, 8));
         place(panel, 640f, 380.5f, 640f, 328f);
-        createErrorDialog.addActor(panel);
+        tableErrorDialog.addActor(panel);
 
-        Label title = new Label("NÃO FOI POSSÍVEL CRIAR", new Label.LabelStyle(loadingTitleFont, brown));
-        title.setAlignment(Align.center);
-        place(title, 684f, 424.5f, 552f, 48f);
-        createErrorDialog.addActor(title);
+        tableErrorTitle = new Label("", new Label.LabelStyle(loadingTitleFont, brown));
+        tableErrorTitle.setAlignment(Align.center);
+        place(tableErrorTitle, 684f, 424.5f, 552f, 48f);
+        tableErrorDialog.addActor(tableErrorTitle);
 
-        Label message = new Label("Não conseguimos criar sua mesa. Tente\nnovamente.", new Label.LabelStyle(loadingMessageFont, brown));
-        message.setAlignment(Align.center);
-        place(message, 684f, 496.5f, 552f, 64f);
-        createErrorDialog.addActor(message);
+        tableErrorMessage = new Label("", new Label.LabelStyle(loadingMessageFont, brown));
+        tableErrorMessage.setAlignment(Align.center);
+        place(tableErrorMessage, 684f, 496.5f, 552f, 64f);
+        tableErrorDialog.addActor(tableErrorMessage);
 
-        addCreateErrorButton("VOLTAR", 684f, cream, green, () -> createErrorDialog.setVisible(false));
+        addCreateErrorButton("VOLTAR", 684f, cream, green,
+            () -> tableErrorDialog.setVisible(false));
+
         addCreateErrorButton("TENTAR DE NOVO", 972f, Color.valueOf("F0B639"), brown, () -> {
-            createErrorDialog.setVisible(false);
-            startCreatingTable(onCreate);
+            tableErrorDialog.setVisible(false);
+            retryTableAction.run();
         });
 
-        createErrorDialog.setVisible(false);
-        stage.addActor(createErrorDialog);
+        tableErrorDialog.setVisible(false);
+        stage.addActor(tableErrorDialog);
     }
 
     private void addCreateErrorButton(String text, float x, Color fill,
@@ -250,7 +282,7 @@ public class PairingScreen extends ScreenAdapter {
                 onClick.run();
             }
         });
-        createErrorDialog.addActor(button);
+        tableErrorDialog.addActor(button);
     }
 
     private void startTableLoading(String title, String message, Runnable onComplete) {
@@ -534,7 +566,7 @@ public class PairingScreen extends ScreenAdapter {
             Gdx.input.setCatchKey(Input.Keys.BACK, false);
         }
 
-        createErrorDialog.setVisible(false);
+        tableErrorDialog.setVisible(false);
     }
 
     @Override
