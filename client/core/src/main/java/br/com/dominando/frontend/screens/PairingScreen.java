@@ -48,6 +48,10 @@ public class PairingScreen extends ScreenAdapter {
     private final TextButton createButton;
     private final TextButton joinButton;
     private final Label feedback;
+    private final BitmapFont codeErrorFont;
+    private final Label codeError;
+    private final TextField.TextFieldStyle normalCodeStyle;
+    private final TextField.TextFieldStyle errorCodeStyle;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -79,6 +83,14 @@ public class PairingScreen extends ScreenAdapter {
         codeField = createInput("Digite o código", 1130f, 698f);
         joinButton = createButton("ENTRAR NA MESA", 1190f, 834f, 500f, 112f);
 
+        codeErrorFont = createFont("fonts/NunitoSans-Black.ttf", 22);
+        codeError = addLabel("Confira o código da mesa", codeErrorFont, cream, 1130f, 814f, 620f, 30f, Align.left);
+        codeError.setVisible(false);
+
+        normalCodeStyle = codeField.getStyle();
+        errorCodeStyle = new TextField.TextFieldStyle(normalCodeStyle);
+        errorCodeStyle.background = createInputBackground(Color.valueOf("9c2f23"));
+
         feedback = addLabel("", labelFont, cream,1070f, 968f, 740f, 64f, Align.center);
         feedback.setWrap(true);
 
@@ -86,6 +98,11 @@ public class PairingScreen extends ScreenAdapter {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 feedback.setText("");
+
+                if (actor == codeField && codeError.isVisible()) {
+                    setCodeErrorVisible(false);
+                }
+
                 refreshButtons();
             }
         };
@@ -113,6 +130,13 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 finishTyping();
+
+                if (codeField.getText().trim().length() != 4) {
+                    setCodeErrorVisible(true);
+                    return;
+                }
+
+                setCodeErrorVisible(false);
                 feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
             }
         });
@@ -152,14 +176,7 @@ public class PairingScreen extends ScreenAdapter {
         style.messageFont = inputFont;
         style.messageFontColor = new Color(brown.r, brown.g, brown.b, 0.6f);
 
-        TextureRegionDrawable background = roundedBackground(620, 104, 18, 5, cream, 4);
-
-        background.setLeftWidth(32f);
-        background.setRightWidth(32f);
-        background.setTopHeight(5f);
-        background.setBottomHeight(9f);
-
-        style.background = background;
+        style.background = createInputBackground(brown);
 
         TextureRegionDrawable cursor = solid(brown);
         cursor.setMinWidth(2f);
@@ -174,6 +191,16 @@ public class PairingScreen extends ScreenAdapter {
         stage.addActor(field);
 
         return field;
+    }
+
+    private TextureRegionDrawable createInputBackground(Color borderColor) {
+        TextureRegionDrawable background = roundedBackground(620, 104, 18, 5, cream, 4, borderColor);
+        background.setLeftWidth(32f);
+        background.setRightWidth(32f);
+        background.setTopHeight(5f);
+        background.setBottomHeight(9f);
+
+        return background;
     }
 
     private TextButton createButton(String text, float x, float top, float width, float height) {
@@ -261,14 +288,26 @@ public class PairingScreen extends ScreenAdapter {
     }
 
     private TextureRegionDrawable roundedBackground(int width, int height, int radius, int border, Color fill, int shadow) {
+        return roundedBackground(width, height, radius, border, fill, shadow, brown);
+    }
+
+    private TextureRegionDrawable roundedBackground(int width, int height, int radius, int border, Color fill, int shadow, Color borderColor) {
         Pixmap pixmap = new Pixmap(width, height + shadow, Pixmap.Format.RGBA8888);
         pixmap.setColor(brown);
         fillRounded(pixmap, 0, shadow, width, height, radius);
+
+        pixmap.setColor(borderColor);
         fillRounded(pixmap, 0, 0, width, height, radius);
 
         pixmap.setColor(fill);
         fillRounded(pixmap, border, border, width - border * 2, height - border * 2, radius - border);
         return drawable(pixmap);
+    }
+
+    private void setCodeErrorVisible(boolean visible) {
+        codeField.setStyle(visible ? errorCodeStyle : normalCodeStyle);
+        codeError.setVisible(visible);
+        place(joinButton, 1190f, visible ? 876f : 834f, 500f, 120f);
     }
 
     private void fillRounded(Pixmap pixmap, int x, int y, int width, int height, int radius) {
@@ -336,6 +375,7 @@ public class PairingScreen extends ScreenAdapter {
         inputFont.dispose();
         buttonFont.dispose();
         separatorFont.dispose();
+        codeErrorFont.dispose();
 
         for (Texture texture : textures) {
             texture.dispose();
