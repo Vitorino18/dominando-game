@@ -68,6 +68,14 @@ public class PairingScreen extends ScreenAdapter {
     private Label tableErrorMessage;
     private Runnable retryTableAction;
     private boolean simulateJoinFailure = false;
+    private final BitmapFont nameErrorFont;
+    private final Label nameError;
+    private final Label separatorLabel;
+    private final Label codeLabel;
+    private final Image separatorImage;
+    private final TextField.TextFieldStyle normalNameStyle;
+    private final TextField.TextFieldStyle errorNameStyle;
+    private boolean simulateNameRejection = false;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -91,14 +99,21 @@ public class PairingScreen extends ScreenAdapter {
 
         addLabel("SEU NOME", labelFont, cream, 1130f, 264f, 620f, 30f, Align.left);
         nameField = createInput("Digite seu nome", 1130f, 306f);
+        nameErrorFont = createFont("fonts/NunitoSans-ExtraBold.ttf", 22);
+        nameError = addLabel("Esse nome não foi aceito. Tente outro", nameErrorFont, cream, 1130f, 422f, 620f, 30f, Align.left);
+        nameError.setVisible(false);
+
+        normalNameStyle = nameField.getStyle();
+        errorNameStyle = new TextField.TextFieldStyle(normalNameStyle);
 
         createButton = createButton("CRIAR UMA MESA", 1190f, 442f, 500f, 112f);
 
-        addAsset("separador.png", 1228f, 605f, 424f, 4f);
+        separatorImage = addAsset("separador.png", 1228f, 605f, 424f, 4f);
 
-        addLabel("OU", separatorFont, ochre,1420f, 590f, 40f, 34f, Align.center);
+        separatorLabel = addLabel("OU", separatorFont, ochre, 1420f, 590f, 40f, 34f, Align.center);
 
-        addLabel("CÓDIGO DA MESA", labelFont, cream,1130f, 656f, 620f, 30f, Align.left);
+        codeLabel = addLabel("CÓDIGO DA MESA", labelFont, cream, 1130f, 656f, 620f, 30f, Align.left);
+
         codeField = createInput("Digite o código", 1130f, 698f);
         joinButton = createButton("ENTRAR NA MESA", 1190f, 834f, 500f, 112f);
 
@@ -109,6 +124,7 @@ public class PairingScreen extends ScreenAdapter {
         normalCodeStyle = codeField.getStyle();
         errorCodeStyle = new TextField.TextFieldStyle(normalCodeStyle);
         errorCodeStyle.background = createInputBackground(Color.valueOf("9c2f23"));
+        errorNameStyle.background = errorCodeStyle.background;
 
         feedback = addLabel("", labelFont, cream,1070f, 968f, 740f, 64f, Align.center);
         feedback.setWrap(true);
@@ -120,6 +136,10 @@ public class PairingScreen extends ScreenAdapter {
 
                 if (actor == codeField && codeError.isVisible()) {
                     setCodeErrorVisible(false);
+                }
+
+                if (actor == nameField && nameError.isVisible()) {
+                    setNameErrorVisible(false);
                 }
 
                 refreshButtons();
@@ -189,23 +209,21 @@ public class PairingScreen extends ScreenAdapter {
     }
 
     private void startCreatingTable(Runnable onCreate) {
-        startTableLoading(
-            "CRIANDO MESA...",
-            "Aguarde enquanto preparamos sua mesa.",
-            () -> {
-                if (simulateCreateFailure) {
-                    simulateCreateFailure = false;
-                    showTableError(
-                        "NÃO FOI POSSÍVEL CRIAR",
-                        "Não conseguimos criar sua mesa. Tente\nnovamente.",
-                        () -> startCreatingTable(onCreate)
-                    );
-                    return;
-                }
-
-                onCreate.run();
+        startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa.", () -> {
+            if (simulateNameRejection) {
+                simulateNameRejection = false;
+                createLoading.setVisible(false);
+                setNameErrorVisible(true);
+                return;
             }
-        );
+            if (simulateCreateFailure) {
+                simulateCreateFailure = false;
+                showTableError("NÃO FOI POSSÍVEL CRIAR", "Não conseguimos criar sua mesa. Tente\nnovamente.", () -> startCreatingTable(onCreate));
+                return;
+            }
+
+            onCreate.run();
+        });
     }
 
     private void startJoiningTable() {
@@ -356,7 +374,7 @@ public class PairingScreen extends ScreenAdapter {
     }
 
     private void refreshButtons() {
-        boolean hasName = !nameField.getText().trim().isEmpty();
+        boolean hasName = !nameField.getText().trim().isEmpty() && !nameError.isVisible();
         boolean hasCode = !codeField.getText().trim().isEmpty();
 
         setEnabled(createButton, hasName);
@@ -436,7 +454,7 @@ public class PairingScreen extends ScreenAdapter {
         return label;
     }
 
-    private void addAsset(String filename, float x, float top, float width, float height) {
+    private Image addAsset(String filename, float x, float top, float width, float height) {
         Texture texture = new Texture(Gdx.files.internal("ui/pairing/" + filename));
         texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         textures.add(texture);
@@ -446,6 +464,8 @@ public class PairingScreen extends ScreenAdapter {
 
         place(image, x, top, width, height);
         stage.addActor(image);
+
+        return image;
     }
 
     private void addSolid(
@@ -505,7 +525,27 @@ public class PairingScreen extends ScreenAdapter {
     private void setCodeErrorVisible(boolean visible) {
         codeField.setStyle(visible ? errorCodeStyle : normalCodeStyle);
         codeError.setVisible(visible);
-        place(joinButton, 1190f, visible ? 876f : 834f, 500f, 120f);
+        layoutFormErrors();
+    }
+
+    private void setNameErrorVisible(boolean visible) {
+        nameField.setStyle(visible ? errorNameStyle : normalNameStyle);
+        nameError.setVisible(visible);
+        layoutFormErrors();
+        refreshButtons();
+    }
+
+    private void layoutFormErrors() {
+        float nameOffset = nameError.isVisible() ? 42f : 0f;
+        float codeOffset = codeError.isVisible() ? 42f : 0f;
+
+        place(createButton, 1190f, 442f + nameOffset, 500f, 120f);
+        place(separatorImage, 1228f, 605f + nameOffset, 424f, 4f);
+        place(separatorLabel, 1420f, 590f + nameOffset, 40f, 34f);
+        place(codeLabel, 1130f, 656f + nameOffset, 620f, 30f);
+        place(codeField, 1130f, 698f + nameOffset, 620f, 108f);
+        place(codeError, 1130f, 814f + nameOffset, 620f, 30f);
+        place(joinButton, 1190f, 834f + nameOffset + codeOffset, 500f, 120f);
     }
 
     private void fillRounded(Pixmap pixmap, int x, int y, int width, int height, int radius) {
@@ -582,6 +622,7 @@ public class PairingScreen extends ScreenAdapter {
         loadingTitleFont.dispose();
         loadingMessageFont.dispose();
         dialogButtonFont.dispose();
+        nameErrorFont.dispose();
 
         for (Texture texture : textures) {
             texture.dispose();
