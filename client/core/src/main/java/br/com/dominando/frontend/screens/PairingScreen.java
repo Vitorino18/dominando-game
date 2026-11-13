@@ -59,6 +59,8 @@ public class PairingScreen extends ScreenAdapter {
     private final Image[] createLoadingCaps = new Image[3];
     private final BitmapFont loadingTitleFont;
     private final BitmapFont loadingMessageFont;
+    private Label loadingTitle;
+    private Label loadingMessage;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -127,7 +129,7 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 finishTyping();
-                startCreateLoading(onCreate);
+                startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa", onCreate);
             }
         });
 
@@ -146,7 +148,11 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 setCodeErrorVisible(false);
-                feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
+                startTableLoading("ENTRANDO NA MESA...", "Aguarde enquanto conectamos você à mesa.", () -> {
+                        createLoading.setVisible(false);
+                        feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
+                    }
+                );
             }
         });
 
@@ -171,10 +177,13 @@ public class PairingScreen extends ScreenAdapter {
         refreshButtons();
     }
 
-    private void startCreateLoading(Runnable onCreate) {
+    private void startTableLoading(String title, String message, Runnable onComplete) {
+        loadingTitle.setText(title);
+        loadingMessage.setText(message);
         feedback.setText("");
+
         if (codeError.isVisible()) {
-            createLoading.setVisible(false);
+            setCodeErrorVisible(false);
         }
 
         createLoading.setVisible(true);
@@ -185,14 +194,14 @@ public class PairingScreen extends ScreenAdapter {
             cap.setY(HEIGHT - 592f - cap.getHeight());
             cap.addAction(Actions.sequence(
                 Actions.delay(i * 0.30f),
-                Actions.moveBy(0, 12f, 0.15f),
-                Actions.moveBy(0, -12f, 0.15f)
+                Actions.moveBy(0f, 12f, 0.15f),
+                Actions.moveBy(0f, -12f, 0.15f)
             ));
         }
 
         createLoading.addAction(Actions.sequence(
             Actions.delay(1.2f),
-            Actions.run(onCreate)
+            Actions.run(onComplete)
         ));
     }
 
@@ -208,8 +217,8 @@ public class PairingScreen extends ScreenAdapter {
         place(panel, 640f, 393f, 640f, 303f);
         createLoading.addActor(panel);
 
-        addLoadingLabel("CRIANDO MESA...", loadingTitleFont, 437f, 48f);
-        addLoadingLabel("Aguarde enquanto preparamos sua mesa.", loadingMessageFont, 509f, 31f);
+        loadingTitle = addLoadingLabel("", loadingTitleFont, 437f, 48f);
+        loadingMessage = addLoadingLabel("", loadingMessageFont, 509f, 31f);
 
         Texture capTexture = new Texture(Gdx.files.internal("ui/waiting/tampinha.png"));
         capTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -228,12 +237,14 @@ public class PairingScreen extends ScreenAdapter {
         stage.addActor(createLoading);
     }
 
-    private void addLoadingLabel(String text, BitmapFont font, float top, float height) {
+    private Label addLoadingLabel(String text, BitmapFont font, float top, float height) {
         Label label = new Label(text, new Label.LabelStyle(font, brown));
         label.setAlignment(Align.center);
         label.setTouchable(Touchable.disabled);
         place(label, 684f, top, 552f, height);
         createLoading.addActor(label);
+
+        return label;
     }
 
     private void refreshButtons() {
