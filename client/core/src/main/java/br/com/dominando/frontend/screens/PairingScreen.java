@@ -61,6 +61,9 @@ public class PairingScreen extends ScreenAdapter {
     private final BitmapFont loadingMessageFont;
     private Label loadingTitle;
     private Label loadingMessage;
+    private final Group createErrorDialog = new Group();
+    private final BitmapFont dialogButtonFont;
+    private boolean simulateCreateFailure = false;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -71,6 +74,7 @@ public class PairingScreen extends ScreenAdapter {
         separatorFont = createFont("fonts/LilitaOne-Regular.ttf", 30);
         loadingTitleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         loadingMessageFont = createFont("fonts/NunitoSans-Regular.ttf", 24);
+        dialogButtonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
 
         addAsset("fundo-engradados.png", 0f, 0f, 1920f, 1080f);
         addAsset("logo-desce-uma.png", 145f, 64f, 649.822f, 473f);
@@ -129,7 +133,7 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 finishTyping();
-                startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa", onCreate);
+                startCreatingTable(onCreate);
             }
         });
 
@@ -163,6 +167,11 @@ public class PairingScreen extends ScreenAdapter {
                     return false;
                 }
 
+                if (createErrorDialog.isVisible()) {
+                    createErrorDialog.setVisible(false);
+                    return true;
+                }
+
                 if (createLoading.isVisible()) {
                     return true;
                 }
@@ -174,7 +183,74 @@ public class PairingScreen extends ScreenAdapter {
         });
 
         buildCreateLoading();
+        buildCreateErrorDialog(onCreate);
         refreshButtons();
+    }
+
+    private void startCreatingTable(Runnable onCreate) {
+        startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa.", () -> {
+                if (simulateCreateFailure) {
+                    simulateCreateFailure = false;
+                    createLoading.setVisible(false);
+                    createErrorDialog.setVisible(true);
+                    return;
+                }
+
+                onCreate.run();
+            }
+        );
+    }
+
+    private void buildCreateErrorDialog(Runnable onCreate) {
+        createErrorDialog.setSize(WIDTH, HEIGHT);
+        createErrorDialog.setTouchable(Touchable.enabled);
+
+        Image dimmer = new Image(solid(new Color(0f, 0f, 0f, 0.5f)));
+        place(dimmer, 0f, 0f, WIDTH, HEIGHT);
+        createErrorDialog.addActor(dimmer);
+
+        Image panel = new Image(roundedBackground(640, 320, 24, 4, cream, 8));
+        place(panel, 640f, 380.5f, 640f, 328f);
+        createErrorDialog.addActor(panel);
+
+        Label title = new Label("NÃO FOI POSSÍVEL CRIAR", new Label.LabelStyle(loadingTitleFont, brown));
+        title.setAlignment(Align.center);
+        place(title, 684f, 424.5f, 552f, 48f);
+        createErrorDialog.addActor(title);
+
+        Label message = new Label("Não conseguimos criar sua mesa. Tente\nnovamente.", new Label.LabelStyle(loadingMessageFont, brown));
+        message.setAlignment(Align.center);
+        place(message, 684f, 496.5f, 552f, 64f);
+        createErrorDialog.addActor(message);
+
+        addCreateErrorButton("VOLTAR", 684f, cream, green, () -> createErrorDialog.setVisible(false));
+        addCreateErrorButton("TENTAR DE NOVO", 972f, Color.valueOf("F0B639"), brown, () -> {
+            createErrorDialog.setVisible(false);
+            startCreatingTable(onCreate);
+        });
+
+        createErrorDialog.setVisible(false);
+        stage.addActor(createErrorDialog);
+    }
+
+    private void addCreateErrorButton(String text, float x, Color fill,
+                                      Color textColor, Runnable onClick) {
+        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
+        style.font = dialogButtonFont;
+        style.fontColor = textColor;
+        style.up = roundedBackground(272, 72, 18, 5, fill, 8);
+        style.pressedOffsetY = -2f;
+
+        TextButton button = new TextButton(text, style);
+        button.padBottom(8f);
+        place(button, x, 584.5f, 272f, 80f);
+        button.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                onClick.run();
+            }
+        });
+        createErrorDialog.addActor(button);
     }
 
     private void startTableLoading(String title, String message, Runnable onComplete) {
@@ -457,6 +533,8 @@ public class PairingScreen extends ScreenAdapter {
             Gdx.input.setInputProcessor(null);
             Gdx.input.setCatchKey(Input.Keys.BACK, false);
         }
+
+        createErrorDialog.setVisible(false);
     }
 
     @Override
@@ -471,6 +549,7 @@ public class PairingScreen extends ScreenAdapter {
         codeErrorFont.dispose();
         loadingTitleFont.dispose();
         loadingMessageFont.dispose();
+        dialogButtonFont.dispose();
 
         for (Texture texture : textures) {
             texture.dispose();
