@@ -24,6 +24,9 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.actions.Actions;
+import com.badlogic.gdx.utils.Scaling;
 
 public class PairingScreen extends ScreenAdapter {
 
@@ -52,6 +55,10 @@ public class PairingScreen extends ScreenAdapter {
     private final Label codeError;
     private final TextField.TextFieldStyle normalCodeStyle;
     private final TextField.TextFieldStyle errorCodeStyle;
+    private final Group createLoading = new Group();
+    private final Image[] createLoadingCaps = new Image[3];
+    private final BitmapFont loadingTitleFont;
+    private final BitmapFont loadingMessageFont;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
@@ -60,6 +67,8 @@ public class PairingScreen extends ScreenAdapter {
         inputFont = createFont("fonts/NunitoSans-SemiBold.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 36);
         separatorFont = createFont("fonts/LilitaOne-Regular.ttf", 30);
+        loadingTitleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
+        loadingMessageFont = createFont("fonts/NunitoSans-Regular.ttf", 24);
 
         addAsset("fundo-engradados.png", 0f, 0f, 1920f, 1080f);
         addAsset("logo-desce-uma.png", 145f, 64f, 649.822f, 473f);
@@ -118,7 +127,7 @@ public class PairingScreen extends ScreenAdapter {
                 }
 
                 finishTyping();
-                onCreate.run();
+                startCreateLoading(onCreate);
             }
         });
 
@@ -148,13 +157,83 @@ public class PairingScreen extends ScreenAdapter {
                     return false;
                 }
 
+                if (createLoading.isVisible()) {
+                    return true;
+                }
+
                 finishTyping();
                 onBack.run();
                 return true;
             }
         });
 
+        buildCreateLoading();
         refreshButtons();
+    }
+
+    private void startCreateLoading(Runnable onCreate) {
+        feedback.setText("");
+        if (codeError.isVisible()) {
+            createLoading.setVisible(false);
+        }
+
+        createLoading.setVisible(true);
+
+        for (int i = 0; i < createLoadingCaps.length; i++) {
+            Image cap = createLoadingCaps[i];
+            cap.clearActions();
+            cap.setY(HEIGHT - 592f - cap.getHeight());
+            cap.addAction(Actions.sequence(
+                Actions.delay(i * 0.30f),
+                Actions.moveBy(0, 12f, 0.15f),
+                Actions.moveBy(0, -12f, 0.15f)
+            ));
+        }
+
+        createLoading.addAction(Actions.sequence(
+            Actions.delay(1.2f),
+            Actions.run(onCreate)
+        ));
+    }
+
+    private void buildCreateLoading() {
+        createLoading.setSize(WIDTH, HEIGHT);
+        createLoading.setTouchable(Touchable.enabled);
+
+        Image dimmer = new Image(solid(new Color(0f, 0f, 0f, 0.5f)));
+        place(dimmer, 0f, 0f, WIDTH, HEIGHT);
+        createLoading.addActor(dimmer);
+
+        Image panel = new Image(roundedBackground(640, 295, 24, 4, cream, 8));
+        place(panel, 640f, 393f, 640f, 303f);
+        createLoading.addActor(panel);
+
+        addLoadingLabel("CRIANDO MESA...", loadingTitleFont, 437f, 48f);
+        addLoadingLabel("Aguarde enquanto preparamos sua mesa.", loadingMessageFont, 509f, 31f);
+
+        Texture capTexture = new Texture(Gdx.files.internal("ui/waiting/tampinha.png"));
+        capTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        textures.add(capTexture);
+
+        float capHeight = 40f * capTexture.getHeight() / capTexture.getWidth();
+        for (int i = 0; i < createLoadingCaps.length; i++) {
+            Image cap = new Image(capTexture);
+            cap.setScaling(Scaling.stretch);
+            place(cap, 888f + i * 52f, 592f, 40f, capHeight);
+            createLoadingCaps[i] = cap;
+            createLoading.addActor(cap);
+        }
+
+        createLoading.setVisible(false);
+        stage.addActor(createLoading);
+    }
+
+    private void addLoadingLabel(String text, BitmapFont font, float top, float height) {
+        Label label = new Label(text, new Label.LabelStyle(font, brown));
+        label.setAlignment(Align.center);
+        label.setTouchable(Touchable.disabled);
+        place(label, 684f, top, 552f, height);
+        createLoading.addActor(label);
     }
 
     private void refreshButtons() {
@@ -359,6 +438,9 @@ public class PairingScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        createLoading.clearActions();
+        createLoading.setVisible(false);
+
         if (Gdx.input.getInputProcessor() == stage) {
             finishTyping();
             Gdx.input.setInputProcessor(null);
@@ -376,10 +458,13 @@ public class PairingScreen extends ScreenAdapter {
         buttonFont.dispose();
         separatorFont.dispose();
         codeErrorFont.dispose();
+        loadingTitleFont.dispose();
+        loadingMessageFont.dispose();
 
         for (Texture texture : textures) {
             texture.dispose();
         }
+
         textures.clear();
     }
 }
