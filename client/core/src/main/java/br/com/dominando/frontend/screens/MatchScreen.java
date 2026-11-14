@@ -23,6 +23,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.utils.Disposable;
 
 import br.com.dominando.frontend.settings.GameSettings;
 import br.com.dominando.frontend.ui.OpeningDialogs;
@@ -58,8 +61,6 @@ public class MatchScreen extends ScreenAdapter {
     private static final float PREPARATION_END = SHUFFLE_END + DEAL_DURATION + 0.35f;
     private static final float STONE_WIDTH = 60f;
     private static final float STONE_HEIGHT = 111.82f;
-    private static final float CHAIN_LEFT = 490f;
-    private static final float CHAIN_RIGHT = 1495f;
     private static final int CAPS_TO_WIN = 5;
     private final Stage stage;
     private final Texture backgroundTexture;
@@ -89,9 +90,7 @@ public class MatchScreen extends ScreenAdapter {
 
     private final DominoTile leftEndPreview;
     private final DominoTile rightEndPreview;
-    private final Label hint;
     private final RoundResultView roundResultView;
-    private final TextButton passButton;
     private final TextButton nextRoundButton;
     private final BitmapFont controlsFont;
     private final Texture buttonTexture;
@@ -102,10 +101,8 @@ public class MatchScreen extends ScreenAdapter {
     private LocalDominoRound round;
     private Player roundOpeningPreference;
     private Stone selectedStone;
-    private Placement firstPlacement;
-    private Boolean chainBendsLeft;
-    private Placement firstCorner;
-    private boolean cavaAside;
+    private final List<ChainMove> chainMoves = new ArrayList<>();
+    private int chainSizePercent = 100;
     private boolean leavingResult;
     private boolean entranceFinished;
     private boolean movingStone;
@@ -116,6 +113,7 @@ public class MatchScreen extends ScreenAdapter {
     private final OpeningDialogs matchSettings;
     private final Texture matchSettingsIcon;
     private final CavaView dealCavaView;
+    private final PassButton passButton;
 
     public MatchScreen() {
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
@@ -180,16 +178,14 @@ public class MatchScreen extends ScreenAdapter {
         tilesLayer.addActor(rightEndPreview);
 
         cavaView = new CavaView(dominoAssets, 14);
-        float cavaScale = 1f;
-
-        cavaView.setOrigin(0f, 0f);
-        cavaView.setScale(cavaScale);
-        cavaView.setPosition(490f, HEIGHT - 400f - 120f * cavaScale);
+        cavaView.setScale(CAVA_SCALE);
+        cavaView.setPosition(CAVA_X, CAVA_Y);
 
         tilesLayer.addActor(cavaView);
 
         dealCavaView = new CavaView(dominoAssets, 14);
-        dealCavaView.setPosition(cavaView.getX(), cavaView.getY());
+        dealCavaView.setScale(CAVA_SCALE);
+        dealCavaView.setPosition(CAVA_X, CAVA_Y);
         dealCavaView.setTouchable(Touchable.disabled);
         dealCavaView.setVisible(false);
         stage.addActor(dealCavaView);
@@ -245,24 +241,16 @@ public class MatchScreen extends ScreenAdapter {
         controlsFont = createControlsFont();
         buttonTexture = createButtonTexture();
 
-        hint = new Label("", new Label.LabelStyle(controlsFont, Color.valueOf("F0DCB2")));
-        hint.setAlignment(Align.center);
-        hint.setBounds(510f, 337f, 900f, 42f);
-        hint.setTouchable(Touchable.disabled);
-        hudLayer.addActor(hint);
-
-        passButton = createButton("Bater duas vezes");
-        ClickListener passListener = new ClickListener() {
+        passButton = new PassButton(controlsFont);
+        passButton.setPosition(134f, 48f);
+        passButton.setAvailable(false);
+        passButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (getTapCount() >= 2 && canAct() && round.pass()) {
-                    selectStone(null);
-                    refreshTurn();
-                }
+                registerPassTap();
             }
-        };
-        passListener.setTapCountInterval(0.45f);
-        passButton.addListener(passListener);
+        });
+        hudLayer.addActor(passButton);
 
         roundResultView = new RoundResultView();
         hudLayer.addActor(roundResultView);
@@ -395,8 +383,8 @@ public class MatchScreen extends ScreenAdapter {
             float targetY;
 
             if (toCava) {
-                targetX = dealCavaView.getX() + dealCavaView.getWidth() / 2f;
-                targetY = dealCavaView.getY() + dealCavaView.getHeight() / 2f;
+                targetX = CAVA_X + dealCavaView.getWidth() * CAVA_SCALE / 2f;
+                targetY = CAVA_Y + dealCavaView.getHeight() * CAVA_SCALE / 2f;
                 visible = slide < 1f;
             } else {
                 Player player = index < 7 ? Player.OPPONENT : Player.HUMAN;
@@ -467,6 +455,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void startRound(Player preferredStarter) {
+        passButton.setAvailable(false);
         tilesLayer.clearActions();
         selectStone(null);
 
@@ -479,13 +468,10 @@ public class MatchScreen extends ScreenAdapter {
         handActors.clear();
         chainActors.clear();
 
-        firstPlacement = null;
-        chainBendsLeft = null;
-        firstCorner = null;
-        cavaAside = false;
+        chainMoves.clear();
+        chainSizePercent = 100;
         leavingResult = false;
         cavaView.clearActions();
-        cavaView.setX(490f);
         roundScored = false;
         roundResultView.clearActions();
         roundResultView.setVisible(false);
@@ -493,6 +479,7 @@ public class MatchScreen extends ScreenAdapter {
         opponentScoreView.setVisible(true);
         playerInfoView.setVisible(true);
         opponentInfoView.setVisible(true);
+        nextRoundButton.setVisible(false);
         roundOpeningPreference = preferredStarter;
         round = new LocalDominoRound(random, preferredStarter);
 
@@ -554,7 +541,13 @@ public class MatchScreen extends ScreenAdapter {
         float tileHeight = local ? 164f : 82f;
         float gap = local ? 12f : 10f;
         float availableWidth = local ? 720f : 480f;
-        float centerY = local ? 170f : HEIGHT - 132f - tileHeight / 2f;
+        float centerY = local ? HUMAN_HAND_Y : OPPONENT_HAND_Y;
+
+        if (local && hand.size() > 1) {
+            float gapThatFits = (availableWidth - hand.size() * tileWidth) / (hand.size() - 1);
+            gap = Math.max(-10f, Math.min(gap, gapThatFits));
+        }
+
         float totalWidth = hand.size() * tileWidth + (hand.size() - 1) * gap;
         float scale = Math.min(1f, availableWidth / totalWidth);
         float startX = (WIDTH - totalWidth * scale) / 2f;
@@ -597,39 +590,78 @@ public class MatchScreen extends ScreenAdapter {
         rightEndPreview.setVisible(false);
         if (stone != null && canAct()) {
             refreshPreviews(stone);
-        } else if (round != null && !movingStone) {
-            applyChainLayout(planChain(round.chain(), false), null);
         }
     }
 
     private void refreshPreviews(Stone stone) {
         Placement left = round.preview(stone, Side.LEFT);
-        Placement right = round.preview(stone, Side.RIGHT);
-        List<Placement> displayed = new ArrayList<>(round.chain());
-
-        if (left != null) {
-            displayed.add(0, left);
-        }
-        if (right != null) {
-            displayed.add(right);
-        }
-
-        Map<Placement, Pose> poses = planChain(displayed, false);
-        applyChainLayout(poses, null);
-        showPreview(leftEndPreview, left, poses);
-        showPreview(rightEndPreview, right, poses);
+        Placement right = chainMoves.isEmpty() && left != null ? null : round.preview(stone, Side.RIGHT);
+        showPreview(leftEndPreview, left, previewPose(left, Side.LEFT, chainSizePercent));
+        showPreview(rightEndPreview, right, previewPose(right, Side.RIGHT, chainSizePercent));
     }
 
-    private void showPreview(
-        DominoTile actor, Placement placement, Map<Placement, Pose> poses
-    ) {
-        if (placement == null) {
+    private boolean prepareHumanTurn() {
+        int percent = chainSizePercent;
+        while (!allPreviewsFit(percent)) {
+            if (percent == MIN_CHAIN_PERCENT) {
+                throw new IllegalStateException("As prévias não couberam na área de jogo.");
+            }
+            percent -= CHAIN_SCALE_STEP;
+        }
+
+        if (percent == chainSizePercent) {
+            return false;
+        }
+        Map<Placement, Pose> poses = layoutChain(chainMoves, percent);
+        chainSizePercent = percent;
+        movingStone = true;
+        cavaView.setTouchable(Touchable.disabled);
+        passButton.setAvailable(false);
+        applyChainLayout(poses, null);
+        tilesLayer.addAction(Actions.sequence(
+            Actions.delay(CHAIN_MOVE_DURATION),
+            Actions.run(() -> {
+                movingStone = false;
+                refreshTurn();
+            })
+        ));
+        return true;
+    }
+
+    private boolean allPreviewsFit(int percent) {
+        for (Stone stone : round.hand(Player.HUMAN)) {
+            Placement left = round.preview(stone, Side.LEFT);
+            Placement right = chainMoves.isEmpty() && left != null ? null : round.preview(stone, Side.RIGHT);
+            Pose leftPose = previewPose(left, Side.LEFT, percent);
+            Pose rightPose = previewPose(right, Side.RIGHT, percent);
+            if ((left != null && leftPose == null) || (right != null && rightPose == null)) {
+                return false;
+            }
+            if (leftPose != null && rightPose != null && chainBody(leftPose).overlaps(chainBody(rightPose))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Pose previewPose(Placement preview, Side side, int percent) {
+        if (preview == null) {
+            return null;
+        }
+        List<ChainMove> proposed = new ArrayList<>(chainMoves);
+        proposed.add(new ChainMove(preview, side));
+        Map<Placement, Pose> poses = layoutChain(proposed, percent);
+        return poses == null ? null : poses.get(preview);
+    }
+
+    private void showPreview(DominoTile tile, Placement placement, Pose pose) {
+        if (pose == null) {
             return;
         }
-        actor.setValues(placement.stone.first, placement.stone.second);
-        poses.get(placement).applyTo(actor);
-        actor.toFront();
-        actor.setVisible(true);
+        tile.setValues(placement.stone.first, placement.stone.second);
+        pose.applyTo(tile);
+        tile.toFront();
+        tile.setVisible(true);
     }
 
     private void playStone(Stone stone, Side side) {
@@ -641,9 +673,7 @@ public class MatchScreen extends ScreenAdapter {
 
         movingStone = true;
         selectStone(null);
-        if (firstPlacement == null) {
-            firstPlacement = placement;
-        }
+        chainMoves.add(new ChainMove(placement, side));
 
         DominoTile tile = handActors.remove(stone);
         chainActors.put(placement, tile);
@@ -653,14 +683,20 @@ public class MatchScreen extends ScreenAdapter {
         tile.toFront();
 
         cavaView.setTouchable(Touchable.disabled);
-        passButton.setVisible(false);
-        hint.setText("");
+        passButton.setAvailable(false);
         layoutHand(mover);
 
-        Map<Placement, Pose> poses = planChain(round.chain(), true);
+        Map<Placement, Pose> poses = layoutChain(chainMoves, chainSizePercent);
+        while (poses == null && chainSizePercent > MIN_CHAIN_PERCENT) {
+            chainSizePercent -= CHAIN_SCALE_STEP;
+            poses = layoutChain(chainMoves, chainSizePercent);
+        }
+        if (poses == null) {
+            throw new IllegalStateException("A corrente não coube na área de jogo.");
+        }
         applyChainLayout(poses, placement);
         Pose target = poses.get(placement);
-        float duration = 0.42f;
+        float duration = CHAIN_MOVE_DURATION;
         tile.addAction(Actions.sequence(
             Actions.parallel(
                 Actions.moveTo(target.x, target.y, duration, Interpolation.smooth),
@@ -674,13 +710,41 @@ public class MatchScreen extends ScreenAdapter {
         ));
     }
 
+    private void registerPassTap() {
+        if (!passButton.isVisible() || !canAct() || !round.canPass() || passButton.taps == 2) {
+            return;
+        }
+
+        passButton.showTaps(passButton.taps + 1);
+
+        if (passButton.taps == 2) {
+            passButton.setTouchable(Touchable.disabled);
+            passButton.addAction(Actions.sequence(
+                Actions.delay(0.22f),
+                Actions.run(this::finishPass)
+            ));
+        }
+    }
+
+    private void finishPass() {
+        boolean passed = canAct() && round.pass();
+        passButton.setAvailable(false);
+
+        if (passed) {
+            selectStone(null);
+        }
+
+        refreshTurn();
+    }
+
     private void drawForCurrentPlayer() {
         Player player = round.turn();
         Stone stone = round.draw();
         if (stone != null) {
             selectStone(null);
             createHandActor(stone, player);
-            handActors.get(stone).setBounds(cavaView.getX() + 70f, cavaView.getY() + 30f, 44f, 82f);
+            handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE,
+                CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
             layoutHand(player);
             refreshTurn();
         }
@@ -710,72 +774,54 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void refreshTurn() {
+        if (round.isFinished() && roundScored) {
+            return;
+        }
+
         playerInfoView.setDisplayedCount(round.hand(Player.HUMAN).size());
         opponentInfoView.setDisplayedCount(round.hand(Player.OPPONENT).size());
         cavaView.setDisplayedCount(round.stockCount());
         cavaView.setVisible(round.stockCount() > 0);
 
         boolean human = canAct();
+        if (human && prepareHumanTurn()) {
+            return;
+        }
+
         boolean opponent = entranceFinished && !movingStone && !round.isFinished()
             && round.turn() == Player.OPPONENT;
         playerInfoView.setActiveTurn(human);
         opponentInfoView.setActiveTurn(opponent);
         cavaView.setTouchable(human && round.canDraw() ? Touchable.enabled : Touchable.disabled);
-        passButton.setVisible(human && round.canPass());
-        nextRoundButton.setVisible(round.isFinished());
+        passButton.setAvailable(human && round.canPass());
 
-        hint.setY(337f);
         if (round.isFinished()) {
             showResult();
         } else if (opponent) {
-            hint.setText("Adversário jogando...");
+            opponentInfoView.setTurnPrompt("Jogando...");
             tilesLayer.addAction(Actions.sequence(
                 Actions.delay(0.45f),
                 Actions.run(this::playOpponentTurn)
             ));
         } else if (human && round.canDraw()) {
-            hint.setY(26f);
-            hint.setText("Sem encaixe. Toque na cava.");
+            playerInfoView.setTurnPrompt("Toque na cava");
         } else if (human && round.canPass()) {
-            hint.setText("Cava vazia.");
-        } else if (human && round.chain().isEmpty()) {
-            Stone opening = round.openingStone();
-            if (opening == null) {
-                hint.setText("Selecione uma pedra para abrir.");
-            } else {
-                hint.setText("Abra com a bucha de " + opening.first + ".");
-            }
-        } else {
-            hint.setText("");
+            playerInfoView.setTurnPrompt("Cava vazia");
         }
     }
 
     private void showResult() {
         Player winner = round.winner();
-        if (!roundScored) {
-            nextRoundButton.clearActions();
-            nextRoundButton.setTouchable(Touchable.disabled);
-            nextRoundButton.getColor().a = 0f;
-            nextRoundButton.setScale(0.97f);
-            nextRoundButton.addAction(Actions.sequence(
-                Actions.delay(0.10f),
-                Actions.parallel(
-                    Actions.fadeIn(0.26f, Interpolation.smooth),
-                    Actions.scaleTo(1f, 1f, 0.26f, Interpolation.smooth)
-                ),
-                Actions.touchable(Touchable.enabled)
-            ));
-            if (winner == Player.HUMAN) {
-                humanCaps++;
-            } else if (winner == Player.OPPONENT) {
-                opponentCaps++;
-            }
-            playerScoreView.setDisplayedScore(humanCaps);
-            opponentScoreView.setDisplayedScore(opponentCaps);
-            roundScored = true;
+        if (winner == Player.HUMAN) {
+            humanCaps++;
+        } else if (winner == Player.OPPONENT) {
+            opponentCaps++;
         }
 
-        hint.setText("");
+        playerScoreView.setDisplayedScore(humanCaps);
+        opponentScoreView.setDisplayedScore(opponentCaps);
+        roundScored = true;
+
         for (DominoTile tile : handActors.values()) {
             tile.setVisible(false);
         }
@@ -786,266 +832,270 @@ public class MatchScreen extends ScreenAdapter {
         playerInfoView.setVisible(false);
         opponentInfoView.setVisible(false);
 
-        if (matchIsFinished()) {
+        boolean matchFinished = matchIsFinished();
+        nextRoundButton.setVisible(matchFinished);
+
+        if (matchFinished) {
             roundResultView.showMatchWinner(winner == Player.HUMAN, humanCaps, opponentCaps);
+            nextRoundButton.clearActions();
+            nextRoundButton.getColor().a = 1f;
+            nextRoundButton.setScale(1f);
             nextRoundButton.setText("Nova partida");
-        } else if (round.isBlocked()) {
+            nextRoundButton.setTouchable(Touchable.enabled);
+            return;
+        }
+
+        if (round.isBlocked()) {
             roundResultView.showCounts(
                 winner == null, winner == Player.HUMAN,
                 round.handPoints(Player.HUMAN), round.handPoints(Player.OPPONENT)
             );
-            nextRoundButton.setText(winner == null ? "Refazer rodada" : "Próxima rodada");
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);
-            nextRoundButton.setText("Próxima rodada");
         }
+
+        float delay = round.isBlocked() ? 4.5f : 3.5f;
+        roundResultView.addAction(Actions.sequence(
+            Actions.delay(delay),
+            Actions.fadeOut(0.25f, Interpolation.smooth),
+            Actions.run(this::beginNextRound)
+        ));
     }
 
     private boolean matchIsFinished() {
         return humanCaps >= CAPS_TO_WIN || opponentCaps >= CAPS_TO_WIN;
     }
 
-    // Dimensões do corpo opaco no PNG pedra-base.png (176 por 328).
+    private static final float PLAY_LEFT = 526f;
+    private static final float PLAY_RIGHT = 1420f;
+    private static final float PLAY_BOTTOM = 214f;
+    private static final float PLAY_TOP = 916f;
+    // Centro do furo desenhado na textura da mesa.
+    private static final float OPENING_X = 974f;
+    private static final float OPENING_Y = 542f;
+
+    private static final float HUMAN_HAND_Y = 112f;
+    private static final float OPPONENT_HAND_Y = 1000f;
+    private static final float CAVA_X = 1314f;
+    private static final float CAVA_Y = 864f;
+    private static final float CAVA_SCALE = 0.72f;
+    private static final Rectangle CAVA_AREA = new Rectangle(CAVA_X - 5f, CAVA_Y - 5f, 133f, 97f);
+    private static final Rectangle OPPONENT_CAPS_AREA = new Rectangle(470f, 880f, 160f, 164f);
+
     private static final float BODY_WIDTH = STONE_WIDTH * 152f / 176f;
     private static final float BODY_LENGTH = STONE_HEIGHT * 297f / 328f;
     private static final float BODY_SHIFT = STONE_HEIGHT * 7.5f / 328f;
-    private static final float UPPER_ROW_Y = 724f;
-    private static final float MIDDLE_ROW_Y = UPPER_ROW_Y - 3f * BODY_LENGTH;
-    private static final float LOWER_ROW_Y = MIDDLE_ROW_Y - BODY_LENGTH;
-    private static final float LEFT_RAIL = 735f;
-    private static final float RIGHT_RAIL_LIMIT = CHAIN_RIGHT - BODY_WIDTH / 2f;
-    private static final float RAIL_INSET = BODY_WIDTH / 2f;
-    private static final float FREE_SHIFT = 72f;
+    private static final float PIP_OFFSET = STONE_HEIGHT * 30f / 164f;
 
-    private Map<Placement, Pose> planChain(List<Placement> pieces, boolean commit) {
-        boolean preferLeft = chainBendsLeft != null
-            ? chainBendsLeft : leftOverflowsMore(pieces, firstPlacement);
+    private static final int MIN_CHAIN_PERCENT = 10;
+    private static final int CHAIN_SCALE_STEP = 5;
+    private static final float CHAIN_MOVE_DURATION = 0.42f;
 
-        Map<Placement, Pose> poses = layoutChain(pieces, firstPlacement, preferLeft, firstCorner);
-
-        if (commit) {
-            for (int i = 0; i + 1 < pieces.size(); i++) {
-                int current = preferLeft ? pieces.size() - 1 - i : i;
-                int next = preferLeft ? current - 1 : current + 1;
-                Pose from = poses.get(pieces.get(current));
-                Pose to = poses.get(pieces.get(next));
-                if (from.y - to.y > 50f) {
-                    chainBendsLeft = preferLeft;
-                    firstCorner = pieces.get(current);
-                    break;
-                }
-            }
+    private static Map<Placement, Pose> layoutChain(List<ChainMove> moves, int percent) {
+        Map<Placement, Pose> poses = new IdentityHashMap<>();
+        if (moves.isEmpty()) {
+            return poses;
         }
+        float scale = percent / 100f;
+        Placement opening = moves.get(0).placement;
+        float angle = opening.stone.isDouble() ? 0f : opening.stone.first == opening.left ? 90f : -90f;
+        Pose center = chainPose(OPENING_X, OPENING_Y, angle, scale);
+        poses.put(opening, center);
 
+        ChainEnd left = new ChainEnd(opening, center, Direction.LEFT);
+        ChainEnd right = new ChainEnd(opening, center, Direction.RIGHT);
+        List<Rectangle> occupied = new ArrayList<>();
+        occupied.add(CAVA_AREA);
+        occupied.add(OPPONENT_CAPS_AREA);
+        occupied.add(chainBody(center));
+
+        for (int i = 1; i < moves.size(); i++) {
+            ChainMove move = moves.get(i);
+            ChainEnd end = move.side == Side.LEFT ? left : right;
+            if (!extendChain(end, move, scale, occupied)) {
+                return null;
+            }
+            poses.put(move.placement, end.pose);
+            occupied.add(chainBody(end.pose));
+        }
         return poses;
     }
 
-    private static boolean leftOverflowsMore(List<Placement> pieces, Placement firstPlacement) {
-        if (pieces.isEmpty()) {
-            return false;
-        }
+    private static boolean extendChain(ChainEnd end, ChainMove move, float scale, List<Rectangle> occupied) {
+        boolean bucha = move.placement.stone.isDouble();
+        int incoming = move.side == Side.LEFT ? move.placement.right : move.placement.left;
+        boolean firstIsIncoming = move.placement.stone.first == incoming;
+        Rectangle previousBody = chainBody(end.pose);
+        Direction direction = end.direction;
+        float x = previousBody.x + previousBody.width / 2f;
+        float y = previousBody.y + previousBody.height / 2f;
+        float gap = 1.5f * scale;
+        float halfAlong = (bucha ? BODY_WIDTH : BODY_LENGTH) * scale / 2f;
+        float halfAcross = (bucha ? BODY_LENGTH : BODY_WIDTH) * scale / 2f;
 
-        float length = rowLength(pieces, 0, pieces.size());
-        float start = preferredStart(pieces, firstPlacement);
-        return CHAIN_LEFT - start > start + length - CHAIN_RIGHT;
-    }
-
-    private static float preferredStart(List<Placement> pieces, Placement firstPlacement) {
-        Placement anchor = firstPlacement != null ? firstPlacement : pieces.get(0);
-        float before = 0f;
-        for (Placement piece : pieces) {
-            if (piece == anchor) {
-                break;
-            }
-            before += visualWidth(piece);
-        }
-        return WIDTH / 2f - before - visualWidth(anchor) / 2f;
-    }
-
-    private static Map<Placement, Pose> layoutChain(
-        List<Placement> logical, Placement firstPlacement, boolean bendLeft, Placement firstCorner
-    ) {
-        Map<Placement, Pose> poses = new IdentityHashMap<>();
-        int count = logical.size();
-        if (count == 0) {
-            return poses;
-        }
-
-        float length = rowLength(logical, 0, count);
-        float preferred = preferredStart(logical, firstPlacement);
-        float straight = Math.max(CHAIN_LEFT, Math.min(preferred, CHAIN_RIGHT - length));
-        boolean fitsStraight = length <= CHAIN_RIGHT - CHAIN_LEFT;
-        if (firstCorner == null && fitsStraight
-            && (count < 4 || Math.abs(straight - preferred) <= FREE_SHIFT)) {
-            placeRow(poses, logical, 0, count, straight, UPPER_ROW_Y, true, false);
-            return poses;
-        }
-
-        List<Placement> pieces = logical;
-        if (bendLeft) {
-            pieces = new ArrayList<>(logical);
-            java.util.Collections.reverse(pieces);
-        }
-
-        int cornerIndex = firstCorner == null ? -1 : pieces.indexOf(firstCorner);
-        if (cornerIndex > 0 && placeBentChain(poses, pieces, cornerIndex, bendLeft)) {
-            return poses;
-        }
-        if (placeBentChain(poses, pieces, count - 3, bendLeft)) {
-            return poses;
-        }
-
-        if (fitsStraight) {
-            placeRow(poses, logical, 0, count, straight, UPPER_ROW_Y, true, false);
-            return poses;
-        }
-
-        throw new IllegalStateException("A corrente excedeu a capacidade da mesa.");
-    }
-
-    private static boolean placeBentChain(
-        Map<Placement, Pose> poses, List<Placement> pieces, int maxUpper, boolean bendLeft
-    ) {
-        int count = pieces.size();
-        // A primeira descida leva a pedra nova e pelo menos as duas anteriores.
-        for (int upper = Math.min(maxUpper, count - 3); upper >= 1; upper--) {
-            int rightCount = Math.min(4, count - upper);
-            int middleStart = upper + rightCount;
-            float upperLength = rowLength(pieces, 0, upper);
-            float middleLength = rowLength(pieces, middleStart, count);
-            float right = Math.max(1250f, Math.max(
-                CHAIN_LEFT + upperLength + RAIL_INSET,
-                LEFT_RAIL + middleLength + RAIL_INSET
-            ));
-            if (right > RIGHT_RAIL_LIMIT) {
-                continue;
-            }
-
-            placeRow(poses, pieces, 0, upper,
-                right - RAIL_INSET - upperLength, UPPER_ROW_Y, true, bendLeft);
-            placeRail(poses, pieces, upper, rightCount, right, UPPER_ROW_Y, bendLeft);
-            placeRow(poses, pieces, middleStart, count,
-                right - RAIL_INSET, MIDDLE_ROW_Y, false, bendLeft);
+        float straight = halfExtent(previousBody, direction) + gap + halfAlong;
+        float angle = stoneAngle(direction, bucha, firstIsIncoming);
+        float straightX = x + direction.x * straight;
+        float straightY = y + direction.y * straight;
+        Pose candidate = chainPose(straightX, straightY, angle, scale);
+        float nextTurnOffset = bucha ? 0f
+            : (PIP_OFFSET + (firstIsIncoming ? BODY_SHIFT : -BODY_SHIFT)) * scale;
+        Direction preferred = preferredTurn(direction, move.side, x, y);
+        float doubleHalfWidth = BODY_LENGTH * scale / 2f;
+        boolean reserveCorner = direction.x != 0
+            && Math.abs(straightY - OPENING_Y) <= BODY_WIDTH * scale;
+        if (fitsOnTable(candidate, occupied)
+            && (!reserveCorner || fitsDoubleAcross(straightX + direction.x * nextTurnOffset,
+            straightY, preferred, doubleHalfWidth))) {
+            end.place(move.placement, candidate, direction);
             return true;
         }
 
-        for (int upper = Math.min(maxUpper, count - 5); upper >= 1; upper--) {
-            float upperLength = rowLength(pieces, 0, upper);
-            int middleStart = upper + 4;
+        boolean firstIsOutgoing = end.placement.stone.first
+            == (move.side == Side.LEFT ? end.placement.left : end.placement.right);
+        float outgoingOffset = end.placement.stone.isDouble() ? 0f
+            : (PIP_OFFSET - (firstIsOutgoing ? BODY_SHIFT : -BODY_SHIFT)) * scale;
+        for (Direction turn : new Direction[]{preferred, preferred.opposite()}) {
+            angle = stoneAngle(turn, bucha, firstIsIncoming);
 
-            for (int middleEnd = count - 2; middleEnd > middleStart; middleEnd--) {
-                int lowerStart = middleEnd + 2;
-                float middleLength = rowLength(pieces, middleStart, middleEnd);
-                float lowerLength = rowLength(pieces, lowerStart, count);
-                float railDistance = middleLength + 2f * RAIL_INSET;
-                float left = Math.max(LEFT_RAIL, CHAIN_LEFT + upperLength + RAIL_INSET - railDistance);
-                float right = left + railDistance;
+            // Na curva externa, a metade de entrada da peça nova toca a ponta antiga.
+            float outward = halfExtent(previousBody, direction) + gap + halfAcross;
+            float incomingOffset = bucha ? 0f : (PIP_OFFSET - (firstIsIncoming ? BODY_SHIFT : -BODY_SHIFT)) * scale;
+            float turnX = x + direction.x * outward + turn.x * incomingOffset;
+            float turnY = y + direction.y * outward + turn.y * incomingOffset;
+            candidate = chainPose(turnX, turnY, angle, scale);
+            if (!end.placement.stone.isDouble()
+                && fitsDoubleAcross(turnX, turnY, turn, doubleHalfWidth)
+                && fitsOnTable(candidate, occupied)) {
+                end.place(move.placement, candidate, turn);
+                return true;
+            }
 
-                if (right > RIGHT_RAIL_LIMIT
-                    || left + RAIL_INSET + lowerLength > CHAIN_RIGHT) {
-                    continue;
-                }
-
-                placeRow(poses, pieces, 0, upper,
-                    right - RAIL_INSET - upperLength, UPPER_ROW_Y, true, bendLeft);
-                placeRail(poses, pieces, upper, 4, right, UPPER_ROW_Y, bendLeft);
-                placeRow(poses, pieces, middleStart, middleEnd,
-                    right - RAIL_INSET, MIDDLE_ROW_Y, false, bendLeft);
-                placeRail(poses, pieces, middleEnd, 2, left, MIDDLE_ROW_Y, bendLeft);
-                placeRow(poses, pieces, lowerStart, count,
-                    left + RAIL_INSET, LOWER_ROW_Y, true, bendLeft);
+            // Junto ao friso, a próxima peça toca a lateral da metade que está livre.
+            float inward = halfExtent(previousBody, turn) + gap + halfAlong;
+            turnX = x + direction.x * outgoingOffset + turn.x * inward;
+            turnY = y + direction.y * outgoingOffset + turn.y * inward;
+            candidate = chainPose(turnX, turnY, angle, scale);
+            if (fitsDoubleAcross(turnX, turnY, turn, doubleHalfWidth) && fitsOnTable(candidate, occupied)) {
+                end.place(move.placement, candidate, turn);
                 return true;
             }
         }
-
         return false;
     }
 
-    private static float rowLength(List<Placement> pieces, int from, int to) {
-        float length = 0f;
-        for (int i = from; i < to; i++) {
-            length += visualWidth(pieces.get(i));
+    private static boolean fitsDoubleAcross(float x, float y, Direction direction, float halfWidth) {
+        // Reserva a largura da bucha transversal ao próximo trecho.
+        return direction.x == 0
+            ? x - halfWidth >= PLAY_LEFT && x + halfWidth <= PLAY_RIGHT
+            : y - halfWidth >= PLAY_BOTTOM && y + halfWidth <= PLAY_TOP;
+    }
+
+    private static Direction preferredTurn(Direction direction, Side side, float x, float y) {
+        if (direction.x == 0) {
+            return x < OPENING_X ? Direction.RIGHT : Direction.LEFT;
         }
-        return length;
-    }
-
-    private static void placeRow(
-        Map<Placement, Pose> poses, List<Placement> pieces,
-        int from, int to, float edge, float y, boolean goesRight, boolean mirrored
-    ) {
-        float direction = goesRight ? 1f : -1f;
-        boolean actualGoesRight = goesRight != mirrored;
-        for (int i = from; i < to; i++) {
-            Placement piece = pieces.get(i);
-            float width = visualWidth(piece);
-            float centerX = edge + direction * width / 2f;
-            int incoming = mirrored ? piece.right : piece.left;
-            boolean firstIsIncoming = piece.stone.first == incoming;
-            float angle = piece.stone.isDouble() ? 0f
-                : firstIsIncoming == actualGoesRight ? 90f : -90f;
-
-            putPose(poses, piece, mirrorX(centerX, mirrored), y, angle);
-            edge += direction * width;
+        if (Math.abs(y - OPENING_Y) <= BODY_WIDTH) {
+            return side == Side.LEFT ? Direction.UP : Direction.DOWN;
         }
+        return y < OPENING_Y ? Direction.UP : Direction.DOWN;
     }
 
-    private static void placeRail(
-        Map<Placement, Pose> poses, List<Placement> pieces,
-        int from, int count, float x, float y, boolean mirrored
-    ) {
-        for (int i = 0; i < count; i++) {
-            Placement piece = pieces.get(from + i);
-            int incoming = mirrored ? piece.right : piece.left;
-            float angle = piece.stone.first == incoming ? 0f : 180f;
-            putPose(poses, piece, mirrorX(x, mirrored), y - i * BODY_LENGTH, angle);
+    private static float halfExtent(Rectangle body, Direction direction) {
+        return (direction.x == 0 ? body.height : body.width) / 2f;
+    }
+
+    private static float stoneAngle(Direction direction, boolean bucha, boolean firstIsIncoming) {
+        if (direction.x != 0) {
+            return bucha ? 0f : firstIsIncoming == (direction == Direction.RIGHT) ? 90f : -90f;
         }
+        return bucha ? 90f : firstIsIncoming == (direction == Direction.DOWN) ? 0f : 180f;
     }
 
-    private static float mirrorX(float x, boolean mirrored) {
-        return mirrored ? CHAIN_LEFT + CHAIN_RIGHT - x : x;
-    }
-
-    private static void putPose(
-        Map<Placement, Pose> poses, Placement piece, float centerX, float centerY, float angle
-    ) {
-        float artX = angle == 90f ? -BODY_SHIFT : angle == -90f ? BODY_SHIFT : 0f;
-        float artY = angle == 0f ? BODY_SHIFT : angle == 180f ? -BODY_SHIFT : 0f;
-        poses.put(piece, new Pose(
-            centerX - STONE_WIDTH / 2f - artX,
-            centerY - STONE_HEIGHT / 2f - artY,
-            STONE_WIDTH, STONE_HEIGHT, angle
-        ));
-    }
-
-    private static float visualWidth(Placement placement) {
-        return placement.stone.isDouble() ? BODY_WIDTH : BODY_LENGTH;
-    }
-
-    private void makeRoomForChain(Map<Placement, Pose> poses) {
-        boolean needsSpace = false;
-        for (Pose pose : poses.values()) {
-            float centerX = pose.x + STONE_WIDTH / 2f;
-            float centerY = pose.y + STONE_HEIGHT / 2f;
-            float halfWidth = Math.abs(pose.rotation) == 90f ? STONE_HEIGHT / 2f : STONE_WIDTH / 2f;
-            float halfHeight = Math.abs(pose.rotation) == 90f ? STONE_WIDTH / 2f : STONE_HEIGHT / 2f;
-            if (centerX + halfWidth > 490f && centerX - halfWidth < 710f
-                && centerY + halfHeight > 530f && centerY - halfHeight < 680f) {
-                needsSpace = true;
-                break;
+    private static boolean fitsOnTable(Pose pose, List<Rectangle> occupied) {
+        Rectangle body = chainBody(pose);
+        if (body.x < PLAY_LEFT || body.x + body.width > PLAY_RIGHT
+            || body.y < PLAY_BOTTOM || body.y + body.height > PLAY_TOP) {
+            return false;
+        }
+        for (Rectangle placed : occupied) {
+            if (body.overlaps(placed)) {
+                return false;
             }
         }
+        return true;
+    }
 
-        if (needsSpace != cavaAside) {
-            cavaAside = needsSpace;
-            cavaView.clearActions();
-            cavaView.addAction(Actions.moveTo(
-                cavaAside ? 260f : 490f, cavaView.getY(), 0.28f, Interpolation.smooth
-            ));
+    private enum Direction {
+        LEFT(-1, 0), RIGHT(1, 0), UP(0, 1), DOWN(0, -1);
+
+        final int x;
+        final int y;
+
+        Direction(int x, int y) {
+            this.x = x;
+            this.y = y;
         }
+
+        Direction opposite() {
+            switch (this) {
+                case LEFT: return RIGHT;
+                case RIGHT: return LEFT;
+                case UP: return DOWN;
+                default: return UP;
+            }
+        }
+    }
+
+    private static final class ChainMove {
+        final Placement placement;
+        final Side side;
+
+        ChainMove(Placement placement, Side side) {
+            this.placement = placement;
+            this.side = side;
+        }
+    }
+
+    private static final class ChainEnd {
+        Placement placement;
+        Pose pose;
+        Direction direction;
+
+        ChainEnd(Placement placement, Pose pose, Direction direction) {
+            place(placement, pose, direction);
+        }
+
+        void place(Placement placement, Pose pose, Direction direction) {
+            this.placement = placement;
+            this.pose = pose;
+            this.direction = direction;
+        }
+    }
+
+    private static Pose chainPose(float x, float y, float angle, float scale) {
+        float shift = BODY_SHIFT * scale;
+        float artX = angle == 90f ? -shift : angle == -90f ? shift : 0f;
+        float artY = angle == 0f ? shift : angle == 180f ? -shift : 0f;
+        float width = STONE_WIDTH * scale;
+        float height = STONE_HEIGHT * scale;
+        return new Pose(x - width / 2f - artX, y - height / 2f - artY, width, height, angle);
+    }
+
+    private static Rectangle chainBody(Pose pose) {
+        float scale = pose.width / STONE_WIDTH;
+        float shift = BODY_SHIFT * scale;
+        boolean horizontal = Math.abs(pose.rotation) == 90f;
+        float width = (horizontal ? BODY_LENGTH : BODY_WIDTH) * scale;
+        float height = (horizontal ? BODY_WIDTH : BODY_LENGTH) * scale;
+        float x = pose.x + pose.width / 2f;
+        float y = pose.y + pose.height / 2f;
+        x -= horizontal ? Math.copySign(shift, pose.rotation) : 0f;
+        y += horizontal ? 0f : pose.rotation == 0f ? shift : -shift;
+        return new Rectangle(x - width / 2f, y - height / 2f, width, height);
     }
 
     private void applyChainLayout(Map<Placement, Pose> poses, Placement moving) {
-        makeRoomForChain(poses);
         for (Map.Entry<Placement, DominoTile> entry : chainActors.entrySet()) {
             if (entry.getKey() != moving) {
                 Pose pose = poses.get(entry.getKey());
@@ -1053,13 +1103,15 @@ public class MatchScreen extends ScreenAdapter {
                 float rotation = tile.getRotation();
                 float delta = (pose.rotation - rotation + 540f) % 360f - 180f;
                 if (Math.abs(tile.getX() - pose.x) < 0.1f
-                    && Math.abs(tile.getY() - pose.y) < 0.1f && Math.abs(delta) < 0.1f) {
+                    && Math.abs(tile.getY() - pose.y) < 0.1f
+                    && Math.abs(tile.getWidth() - pose.width) < 0.1f && Math.abs(delta) < 0.1f) {
                     continue;
                 }
                 tile.clearActions();
                 tile.addAction(Actions.parallel(
-                    Actions.moveTo(pose.x, pose.y, 0.24f, Interpolation.smooth),
-                    Actions.rotateTo(rotation + delta, 0.24f, Interpolation.smooth)
+                    Actions.moveTo(pose.x, pose.y, CHAIN_MOVE_DURATION, Interpolation.smooth),
+                    Actions.sizeTo(pose.width, pose.height, CHAIN_MOVE_DURATION, Interpolation.smooth),
+                    Actions.rotateTo(rotation + delta, CHAIN_MOVE_DURATION, Interpolation.smooth)
                 ));
             }
         }
@@ -1083,6 +1135,128 @@ public class MatchScreen extends ScreenAdapter {
         void applyTo(DominoTile tile) {
             tile.setBounds(x, y, width, height);
             tile.setRotation(rotation);
+        }
+    }
+
+    private static final class PassButton extends Group implements Disposable {
+        private static final float SIZE = 152f;
+        private static final int FRAME_SIZE = 256;
+
+        private final Texture texture;
+        private final TextureRegionDrawable[] faces = new TextureRegionDrawable[3];
+        private final Image face;
+        private final Label count;
+
+        private int taps;
+
+        PassButton(BitmapFont font) {
+            setSize(SIZE, SIZE);
+            texture = createTexture();
+
+            for (int i = 0; i < faces.length; i++) {
+                TextureRegion region = new TextureRegion(texture, i * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE);
+                faces[i] = new TextureRegionDrawable(region);
+            }
+
+            face = new Image();
+            face.setBounds(0f, 0f, SIZE, SIZE);
+            face.setTouchable(Touchable.disabled);
+            addActor(face);
+
+            Label.LabelStyle style = new Label.LabelStyle(font, Color.valueOf("234730"));
+            Label title = new Label("BATER", style);
+            title.setAlignment(Align.center);
+            title.setBounds(0f, SIZE / 2f - 2f, SIZE, 28f);
+            title.setTouchable(Touchable.disabled);
+            addActor(title);
+
+            count = new Label("", style);
+            count.setAlignment(Align.center);
+            count.setFontScale(0.8f);
+            count.setBounds(0f, SIZE / 2f - 30f, SIZE, 24f);
+            count.setTouchable(Touchable.disabled);
+            addActor(count);
+
+            showTaps(0);
+        }
+
+        void setAvailable(boolean available) {
+            setVisible(available);
+
+            if (!available) {
+                clearActions();
+                showTaps(0);
+            }
+
+            setTouchable(available && taps < 2 ? Touchable.enabled : Touchable.disabled);
+        }
+
+        void showTaps(int taps) {
+            this.taps = taps;
+            face.setDrawable(faces[taps]);
+            count.setText(taps + "/2");
+        }
+
+        @Override
+        public Actor hit(float x, float y, boolean touchable) {
+            float dx = x - SIZE / 2f;
+            float dy = y - SIZE / 2f;
+            float radius = 124f * SIZE / FRAME_SIZE;
+
+            if (dx * dx + dy * dy > radius * radius) {
+                return null;
+            }
+
+            return super.hit(x, y, touchable);
+        }
+
+        private static Texture createTexture() {
+            Pixmap pixmap = new Pixmap(FRAME_SIZE * 3, FRAME_SIZE, Pixmap.Format.RGBA8888);
+            try {
+                pixmap.setBlending(Pixmap.Blending.None);
+
+                for (int taps = 0; taps <= 2; taps++) {
+                    drawFace(pixmap, taps);
+                }
+
+                Texture texture = new Texture(pixmap);
+                texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                return texture;
+            } finally {
+                pixmap.dispose();
+            }
+        }
+
+        private static void drawFace(Pixmap pixmap, int taps) {
+            int centerX = taps * FRAME_SIZE + FRAME_SIZE / 2;
+            int centerY = FRAME_SIZE / 2;
+            Color cream = Color.valueOf("F0DCB2");
+            Color gold = Color.valueOf("F5C54C");
+
+            pixmap.setColor(Color.valueOf("3F2412"));
+            pixmap.fillCircle(centerX, centerY, 124);
+            pixmap.setColor(cream);
+            pixmap.fillCircle(centerX, centerY, 115);
+            pixmap.setColor(taps == 2 ? gold : Color.valueOf("80684B"));
+            pixmap.fillCircle(centerX, centerY, 106);
+
+            if (taps == 1) {
+                pixmap.setColor(gold);
+
+                for (int x = 0; x <= 106; x++) {
+                    int extent = (int) Math.sqrt(106 * 106 - x * x);
+                    pixmap.drawLine(centerX + x, centerY - extent,
+                        centerX + x, centerY + extent);
+                }
+            }
+
+            pixmap.setColor(cream);
+            pixmap.fillCircle(centerX, centerY, 94);
+        }
+
+        @Override
+        public void dispose() {
+            texture.dispose();
         }
     }
 
@@ -1142,6 +1316,7 @@ public class MatchScreen extends ScreenAdapter {
     @Override
     public void show() {
         updateEntrance();
+        passButton.setAvailable(canAct() && round.canPass());
 
         Gdx.input.setInputProcessor(stage);
     }
@@ -1175,6 +1350,7 @@ public class MatchScreen extends ScreenAdapter {
         if (Gdx.input.getInputProcessor() == stage) {
             Gdx.input.setInputProcessor(null);
         }
+        passButton.setAvailable(false);
         matchSettings.close();
     }
 
@@ -1186,6 +1362,7 @@ public class MatchScreen extends ScreenAdapter {
         roundResultView.dispose();
         controlsFont.dispose();
         buttonTexture.dispose();
+        passButton.dispose();
         playerInfoView.dispose();
         opponentInfoView.dispose();
         playerScoreView.dispose();
@@ -1198,6 +1375,6 @@ public class MatchScreen extends ScreenAdapter {
         cavaView.dispose();
         matchSettings.dispose();
         matchSettingsIcon.dispose();
-        cavaView.dispose();
+        dealCavaView.dispose();
     }
 }
