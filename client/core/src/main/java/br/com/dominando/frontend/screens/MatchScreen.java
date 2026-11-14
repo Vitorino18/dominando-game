@@ -26,17 +26,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.Input;
 
 import br.com.dominando.frontend.settings.GameSettings;
 import br.com.dominando.frontend.ui.OpeningDialogs;
-
-
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
 import br.com.dominando.frontend.match.LocalDominoRound;
 import br.com.dominando.frontend.match.LocalDominoRound.Placement;
 import br.com.dominando.frontend.match.LocalDominoRound.Player;
@@ -48,6 +41,13 @@ import br.com.dominando.frontend.ui.CavaView;
 import br.com.dominando.frontend.ui.ScoreView;
 import br.com.dominando.frontend.ui.PlayerInfoView;
 import br.com.dominando.frontend.ui.RoundResultView;
+
+
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -1322,6 +1322,20 @@ public class MatchScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(stage);
     }
 
+    private void simulateReconnection() {
+        if (!entranceFinished || round.isFinished() || matchSettings.isExitConfirmationOpen()) {
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F6)) {
+            matchSettings.openReconnection(stage, false);
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.F7)) {
+            matchSettings.openReconnection(stage, true);
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.F8)) {
+            matchSettings.closeReconnection();
+        }
+    }
+
     @Override
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
@@ -1337,7 +1351,9 @@ public class MatchScreen extends ScreenAdapter {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
 
         stage.getViewport().apply();
-        if (!matchSettings.isExitConfirmationOpen()) {
+        simulateReconnection();
+
+        if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
             stage.act(dt);
         }
         stage.draw();

@@ -41,6 +41,8 @@ public class OpeningDialogs implements Disposable {
     private final Button vibrationButton;
     private final Group connectionOverlay = new Group();
     private final Group exitOverlay = new Group();
+    private final Group reconnectOverlay = new Group();
+    private final Group opponentReconnectOverlay = new Group();
 
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry) {
@@ -107,6 +109,7 @@ public class OpeningDialogs implements Disposable {
         content.add(backButton).colspan(2).width(552f).height(80f);
         if (onLeaveMatch != null) {
             buildExitOverlay(onLeaveMatch);
+            buildReconnectionOverlays();
 
             TextButton.TextButtonStyle exitStyle = new TextButton.TextButtonStyle(backStyle);
             exitStyle.fontColor = Color.valueOf("9B332B");
@@ -180,7 +183,20 @@ public class OpeningDialogs implements Disposable {
             Color.valueOf("F0B639"), brown, onLeaveMatch);
     }
 
+    private void buildReconnectionOverlays() {
+        buildMessageOverlay(reconnectOverlay, "RECONECTANDO...",
+            "Estamos tentando recuperar sua conexão com a mesa.", 224);
+
+        buildMessageOverlay(opponentReconnectOverlay, "AGUARDANDO ADVERSÁRIO",
+            "O adversário perdeu a conexão.\nA partida continua quando ele voltar.", 224);
+    }
+
     private void buildMessageOverlay(Group target, String heading, String description) {
+        buildMessageOverlay(target, heading, description, 320);
+    }
+
+    private void buildMessageOverlay(Group target, String heading, String description, int panelHeight) {
+        float panelTop = (HEIGHT + panelHeight) / 2f;
         target.setSize(WIDTH, HEIGHT);
         target.setTouchable(Touchable.enabled);
 
@@ -188,19 +204,20 @@ public class OpeningDialogs implements Disposable {
         dimmer.setBounds(0f, 0f, WIDTH, HEIGHT);
         target.addActor(dimmer);
 
-        Image panel = new Image(createRoundedBackground(640, 320, 24, 4, cream, 8));
-        panel.setBounds(640f, 372f, 640f, 328f);
+        Image panel = new Image(createRoundedBackground(640, panelHeight, 24, 4, cream, 8));
+        panel.setBounds(640f, panelTop - panelHeight - 8f, 640f, panelHeight + 8f);
         target.addActor(panel);
 
         Label title = new Label(heading, new Label.LabelStyle(titleFont, brown));
         title.setAlignment(Align.center);
-        title.setBounds(684f, 608f, 552f, 48f);
+        title.setBounds(684f, panelTop - 92f, 552f, 48f);
         target.addActor(title);
 
         Label message = new Label(description, new Label.LabelStyle(labelFont, brown));
         message.setFontScale(24f / 28f);
         message.setAlignment(Align.center);
-        message.setBounds(684f, 520f, 552f, 64f);
+        message.setWrap(true);
+        message.setBounds(684f, panelTop - 180f, 552f, 64f);
         target.addActor(message);
     }
 
@@ -249,10 +266,29 @@ public class OpeningDialogs implements Disposable {
         return exitOverlay.getStage() != null;
     }
 
+    public void openReconnection(Stage stage, boolean waitingForOpponent) {
+        close();
+        stage.cancelTouchFocus();
+        stage.setKeyboardFocus(null);
+        stage.setScrollFocus(null);
+        stage.addActor(waitingForOpponent ? opponentReconnectOverlay : reconnectOverlay);
+    }
+
+    public boolean isReconnectionOpen() {
+        return reconnectOverlay.getStage() != null
+            || opponentReconnectOverlay.getStage() != null;
+    }
+
+    public void closeReconnection() {
+        reconnectOverlay.remove();
+        opponentReconnectOverlay.remove();
+    }
+
     public void close() {
         overlay.remove();
         connectionOverlay.remove();
         exitOverlay.remove();
+        closeReconnection();
     }
     private Button createSwitch() {
         Button.ButtonStyle style = new Button.ButtonStyle();
