@@ -40,10 +40,16 @@ public class OpeningDialogs implements Disposable {
     private final Button effectsButton;
     private final Button vibrationButton;
     private final Group connectionOverlay = new Group();
+    private final Group exitOverlay = new Group();
 
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry) {
+        this(settings, onRetry, null);
+    }
+
+    public OpeningDialogs(GameSettings settings, Runnable onRetry, Runnable onLeaveMatch) {
         this.settings = settings;
+        float extraHeight = onLeaveMatch == null ? 0f : 96f;
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
@@ -68,13 +74,13 @@ public class OpeningDialogs implements Disposable {
         dimmer.setTouchable(Touchable.enabled);
         overlay.addActor(dimmer);
 
-        Image panelBackground = new Image(createRoundedBackground(640, 448, 24, 4, cream, 8));
+        Image panelBackground = new Image(createRoundedBackground(640, 448 + (int) extraHeight, 24, 4, cream, 8));
         panelBackground.setTouchable(Touchable.disabled);
-        panelBackground.setBounds(640f, 308f, 640f, 456f);
+        panelBackground.setBounds(640f, 308f - extraHeight / 2f, 640f, 456f + extraHeight);
         overlay.addActor(panelBackground);
 
         Table content = new Table();
-        content.setBounds(684f, 360f, 552f, 360f);
+        content.setBounds(684f, 360f - extraHeight / 2f, 552f, 360f + extraHeight);
         overlay.addActor(content);
 
         Label title = new Label("CONFIGURAÇÕES", new Label.LabelStyle(titleFont, brown));
@@ -99,6 +105,27 @@ public class OpeningDialogs implements Disposable {
         TextButton backButton = new TextButton("VOLTAR", backStyle);
         backButton.padBottom(8f);
         content.add(backButton).colspan(2).width(552f).height(80f);
+        if (onLeaveMatch != null) {
+            buildExitOverlay(onLeaveMatch);
+
+            TextButton.TextButtonStyle exitStyle = new TextButton.TextButtonStyle(backStyle);
+            exitStyle.fontColor = Color.valueOf("9B332B");
+            exitStyle.up = createRoundedBackground(552, 72, 18, 5, cream, 8);
+
+            TextButton exitButton = new TextButton("SAIR DA MESA", exitStyle);
+            exitButton.padBottom(8f);
+            content.row();
+            content.add(exitButton).colspan(2).width(552f).height(80f).padTop(16f);
+
+            exitButton.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    Stage stage = overlay.getStage();
+                    close();
+                    stage.addActor(exitOverlay);
+                }
+            });
+        }
 
         musicButton.addListener(new ChangeListener() {
             @Override
@@ -131,36 +158,55 @@ public class OpeningDialogs implements Disposable {
     }
 
     private void buildConnectionOverlay(Runnable onRetry) {
-        connectionOverlay.setSize(WIDTH, HEIGHT);
-        connectionOverlay.setTouchable(Touchable.enabled);
+        buildMessageOverlay(connectionOverlay, "SEM CONEXÃO",
+            "Você está sem conexão. Verifique sua internet e\ntente novamente.");
+
+        addDialogButton(connectionOverlay, "VOLTAR", 684f, cream,
+            Color.valueOf("234730"), this::close);
+        addDialogButton(connectionOverlay, "TENTAR DE NOVO", 972f,
+            Color.valueOf("F0B639"), brown, () -> {
+                close();
+                onRetry.run();
+            });
+    }
+
+    private void buildExitOverlay(Runnable onLeaveMatch) {
+        buildMessageOverlay(exitOverlay, "SAIR DA MESA?",
+            "Se sair, a partida atual será encerrada.");
+
+        addDialogButton(exitOverlay, "CONTINUAR", 684f, cream,
+            Color.valueOf("234730"), this::close);
+        addDialogButton(exitOverlay, "SAIR DA MESA", 972f,
+            Color.valueOf("F0B639"), brown, onLeaveMatch);
+    }
+
+    private void buildMessageOverlay(Group target, String heading, String description) {
+        target.setSize(WIDTH, HEIGHT);
+        target.setTouchable(Touchable.enabled);
 
         Image dimmer = new Image(createSolid(new Color(0f, 0f, 0f, 0.5f)));
         dimmer.setBounds(0f, 0f, WIDTH, HEIGHT);
-        connectionOverlay.addActor(dimmer);
+        target.addActor(dimmer);
 
         Image panel = new Image(createRoundedBackground(640, 320, 24, 4, cream, 8));
         panel.setBounds(640f, 372f, 640f, 328f);
-        connectionOverlay.addActor(panel);
+        target.addActor(panel);
 
-        Label title = new Label("SEM CONEXÃO", new Label.LabelStyle(titleFont, brown));
+        Label title = new Label(heading, new Label.LabelStyle(titleFont, brown));
         title.setAlignment(Align.center);
         title.setBounds(684f, 608f, 552f, 48f);
-        connectionOverlay.addActor(title);
+        target.addActor(title);
 
-        Label message = new Label("Você está sem conexão. Verifique sua internet e\n" + "tente novamente.", new Label.LabelStyle(labelFont, brown));
+        Label message = new Label(description, new Label.LabelStyle(labelFont, brown));
         message.setFontScale(24f / 28f);
         message.setAlignment(Align.center);
         message.setBounds(684f, 520f, 552f, 64f);
-        connectionOverlay.addActor(message);
-
-        addConnectionButton("VOLTAR", 684f, cream, Color.valueOf("234730"), this::close);
-        addConnectionButton("TENTAR DE NOVO", 972f, Color.valueOf("F0B639"), brown, () -> {
-            close();
-            onRetry.run();
-        });
+        target.addActor(message);
     }
 
-    private void addConnectionButton(String text, float x, Color fill, Color textColor, Runnable onClick) {
+    private void addDialogButton(
+        Group target, String text, float x, Color fill, Color textColor, Runnable onClick
+    ) {
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
         style.font = buttonFont;
         style.fontColor = textColor;
@@ -176,7 +222,7 @@ public class OpeningDialogs implements Disposable {
                 onClick.run();
             }
         });
-        connectionOverlay.addActor(button);
+        target.addActor(button);
     }
 
     public void openConnectionError(Stage stage) {
@@ -199,9 +245,14 @@ public class OpeningDialogs implements Disposable {
         stage.setKeyboardFocus(null);
         stage.setScrollFocus(null);
     }
+    public boolean isExitConfirmationOpen() {
+        return exitOverlay.getStage() != null;
+    }
+
     public void close() {
         overlay.remove();
         connectionOverlay.remove();
+        exitOverlay.remove();
     }
     private Button createSwitch() {
         Button.ButtonStyle style = new Button.ButtonStyle();

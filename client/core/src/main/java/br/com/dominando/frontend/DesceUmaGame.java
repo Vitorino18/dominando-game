@@ -43,7 +43,7 @@ public class DesceUmaGame extends Game {
 
     private void showMatchIntroDemo() {
        if (matchScreen == null) {
-           matchScreen = new MatchScreen();
+           matchScreen = new MatchScreen(() -> Gdx.app.postRunnable(this::leaveMatch));
        }
 
        if (matchIntroScreen == null) {
@@ -53,6 +53,17 @@ public class DesceUmaGame extends Game {
     }
     private void showMatchDemo() {
         setScreen(matchScreen);
+    }
+
+    private void leaveMatch() {
+        if (matchScreen == null || getScreen() != matchScreen) {
+            return;
+        }
+
+        MatchScreen previousMatch = matchScreen;
+        showPairing();
+        matchScreen = null;
+        previousMatch.dispose();
     }
 
     @Override

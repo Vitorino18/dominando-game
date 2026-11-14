@@ -115,7 +115,8 @@ public class MatchScreen extends ScreenAdapter {
     private final CavaView dealCavaView;
     private final PassButton passButton;
 
-    public MatchScreen() {
+    public MatchScreen(Runnable onLeaveMatch) {
+
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
@@ -221,7 +222,7 @@ public class MatchScreen extends ScreenAdapter {
 
         hudLayer.addActor(playerInfoView);
 
-        matchSettings = new OpeningDialogs(new GameSettings(), () -> {});
+        matchSettings = new OpeningDialogs(new GameSettings(), () -> {}, onLeaveMatch);
         matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
         matchSettingsIcon.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
@@ -1336,7 +1337,9 @@ public class MatchScreen extends ScreenAdapter {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
 
         stage.getViewport().apply();
-        stage.act(Math.min(delta, 1f / 30f));
+        if (!matchSettings.isExitConfirmationOpen()) {
+            stage.act(dt);
+        }
         stage.draw();
     }
 
