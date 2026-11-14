@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.Scaling;
 
 public class ScoreView extends Group implements Disposable {
     private static final float BASE_WIDTH = 88f;
@@ -31,6 +32,7 @@ public class ScoreView extends Group implements Disposable {
         for (int i = 0; i < caps.length; i++) {
             caps[i] = new Image(texture);
             caps[i].setTouchable(Touchable.disabled);
+            caps[i].setScaling(Scaling.fit);
             addActor(caps[i]);
         }
 
@@ -57,6 +59,7 @@ public class ScoreView extends Group implements Disposable {
 
         float scaleX = getWidth() / BASE_WIDTH;
         float scaleY = getHeight() / BASE_HEIGHT;
+        float scale = Math.min(scaleX, scaleY);
         float capWidth = 28f;
         float capHeight = capWidth * texture.getHeight() / (float)  texture.getWidth();
 
@@ -68,8 +71,20 @@ public class ScoreView extends Group implements Disposable {
             float x = POSITIONS[i][0];
             float top = POSITIONS[i][1];
 
-            caps[i].setBounds(x * scaleX, (BASE_HEIGHT - top - capHeight) * scaleY, capWidth * scaleX, capHeight * scaleY
-            );
+            float centerX = (x + capWidth / 2f) * scaleX;
+            float centerY = (BASE_HEIGHT - top - capHeight / 2f) * scaleY;
+            float width = capWidth * scale;
+            float height = capHeight * scale;
+            caps[i].setBounds(centerX - width / 2f, centerY - height / 2f, width, height);
+            caps[i].setOrigin(width / 2f, height / 2f);
+        }
+    }
+
+    @Override
+    public void setRotation(float degrees) {
+        super.setRotation(degrees);
+        for (Image cap : caps) {
+            cap.setRotation(-degrees);
         }
     }
 

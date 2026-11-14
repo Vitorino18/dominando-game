@@ -8,9 +8,11 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 
 public class CavaView extends Group implements Disposable {
@@ -18,6 +20,8 @@ public class CavaView extends Group implements Disposable {
     private final BitmapFont counterFont;
     private final Texture counterTexture;
     private final Label counterLabel;
+    private final Array<DominoTile> pile = new Array<>();
+    private int previousCount = -1;
 
     public CavaView(DominoAssets assets, int displayedCount) {
         setSize(170f, 120f);
@@ -52,6 +56,7 @@ public class CavaView extends Group implements Disposable {
         tile.setFaceDown(true);
         tile.setBounds(centerX - 22f, 120f - centerFromTop - height / 2f, 44f, height);
         tile.setRotation(rotation);
+        pile.add(tile);
         addActor(tile);
     }
 
@@ -60,7 +65,21 @@ public class CavaView extends Group implements Disposable {
             throw new IllegalArgumentException("A quantidade exibida nao pode ser negativa.");
         }
 
+        if (count == previousCount) {
+            return;
+        }
+        boolean decreased = previousCount >= 0 && count < previousCount;
+        previousCount = count;
         counterLabel.setText(Integer.toString(count));
+        counterLabel.clearActions();
+        counterLabel.getColor().a = decreased ? 0.5f : 1f;
+        if (decreased) {
+            counterLabel.addAction(Actions.fadeIn(0.18f));
+        }
+        int visibleStones = Math.min(pile.size, (count + 3) / 4);
+        for (int i = 0; i < pile.size; i++) {
+            pile.get(i).setVisible(i < visibleStones);
+        }
     }
 
     private BitmapFont createCounterFont() {
