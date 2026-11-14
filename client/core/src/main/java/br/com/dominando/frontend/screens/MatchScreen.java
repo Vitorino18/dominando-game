@@ -15,6 +15,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import br.com.dominando.frontend.settings.GameSettings;
+import br.com.dominando.frontend.ui.OpeningDialogs;
 import br.com.dominando.frontend.ui.DominoAssets;
 import br.com.dominando.frontend.ui.DominoTile;
 import br.com.dominando.frontend.ui.CavaView;
@@ -46,6 +51,8 @@ public class MatchScreen extends ScreenAdapter {
     private final DominoAssets dominoAssets;
     private final Group tilesLayer;
     private final Group hudLayer;
+    private final OpeningDialogs matchSettings;
+    private final Texture matchSettingsIcon;
 
     private final CavaView cavaView;
 
@@ -162,7 +169,7 @@ public class MatchScreen extends ScreenAdapter {
         tilesLayer.addActor(rightEndPreview);
 
         cavaView = new CavaView(dominoAssets, 14);
-        float cavaScale = 1.25f;
+        float cavaScale = 1f;
 
         cavaView.setOrigin(0f, 0f);
         cavaView.setScale(cavaScale);
@@ -186,7 +193,7 @@ public class MatchScreen extends ScreenAdapter {
 
         hudLayer = new Group();
         hudLayer.setSize(WIDTH, HEIGHT);
-        hudLayer.setTouchable(Touchable.disabled);
+        hudLayer.setTouchable(Touchable.childrenOnly);
         hudLayer.setVisible(false);
 
         stage.addActor(hudLayer);
@@ -200,6 +207,23 @@ public class MatchScreen extends ScreenAdapter {
         playerInfoView.setPosition(1544f, HEIGHT - 920f - PlayerInfoView.TOTAL_HEIGHT);
 
         hudLayer.addActor(playerInfoView);
+
+        matchSettings = new OpeningDialogs(new GameSettings(), () -> {});
+        matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
+        matchSettingsIcon.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        ImageButton settingsButton = new ImageButton(
+            new TextureRegionDrawable(new TextureRegion(matchSettingsIcon))
+        );
+        settingsButton.getImageCell().size(48f, 48f);
+        settingsButton.setBounds(1776f, HEIGHT - 48f - 96f, 96f, 96f);
+        settingsButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                matchSettings.open(stage);
+            }
+        });
+        hudLayer.addActor(settingsButton);
 
         playerInfoView.setActiveTurn(true);
         opponentInfoView.setActiveTurn(false);
@@ -285,9 +309,9 @@ public class MatchScreen extends ScreenAdapter {
             tilesLayer.addActor(tile);
         }
 
-        float opponentWidth = 55f;
-        float opponentHeight = 102.5f;
-        float gap = 12f;
+        float opponentWidth = 44f;
+        float opponentHeight = 82f;
+        float gap = 10f;
 
         float totalWidth = 7f * opponentWidth + 6f * gap;
         float startX = (WIDTH - totalWidth) / 2f;
@@ -489,6 +513,7 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        matchSettings.close();
         if (Gdx.input.getInputProcessor() == stage) {
             Gdx.input.setInputProcessor(null);
         }
@@ -509,5 +534,7 @@ public class MatchScreen extends ScreenAdapter {
         tableTexture.dispose();
         dominoAssets.dispose();
         cavaView.dispose();
+        matchSettings.dispose();
+        matchSettingsIcon.dispose();
     }
 }
