@@ -29,6 +29,9 @@ import br.com.dominando.frontend.ui.PlayerInfoView;
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
     private static final float HEIGHT = 1080f;
+    private static final float ENTRANCE_DURATION = 4.4f;
+    private static final float SHUFFLE_DURATION = 2.8f;
+    private static final float PREPARATION_END = ENTRANCE_DURATION + SHUFFLE_DURATION;
     private static final float FIRST_STONE_X = 930f;
     private static final float FIRST_STONE_TOP = 300f;
     private static final float FIRST_STONE_WIDTH = 60f;
@@ -49,6 +52,7 @@ public class MatchScreen extends ScreenAdapter {
     private final Image tableImage;
 
     private final DominoAssets dominoAssets;
+    private final Group shuffleLayer = new Group();
     private final Group tilesLayer;
     private final Group hudLayer;
     private final OpeningDialogs matchSettings;
@@ -76,6 +80,82 @@ public class MatchScreen extends ScreenAdapter {
 
 
 
+    private void createShuffleTiles() {
+        float[][] poses = {
+            {697.6f, 325.8f, -18f}, {782f, 346.7f, 12f}, {879.6f, 318.5f, -30f},
+            {963.8f, 341.3f, 22f}, {1044.8f, 320.2f, -10f}, {1144.4f, 350.4f, 32f},
+            {1227.8f, 324.3f, -22f}, {720.7f, 456.5f, 28f}, {802.4f, 431.5f, -16f},
+            {896.6f, 455.9f, 38f}, {975.7f, 428.5f, -26f}, {1058.4f, 447.5f, 16f},
+            {1159.5f, 432.2f, -35f}, {1226.8f, 460.2f, 10f}, {696.7f, 606.5f, -28f},
+            {782.7f, 630.1f, 20f}, {866f, 596.7f, -12f}, {969.2f, 622.3f, 34f},
+            {1058.8f, 600.4f, -24f}, {1139.3f, 627.1f, 14f}, {1234.6f, 601.9f, -38f},
+            {712.4f, 731.5f, 16f}, {808.4f, 708.4f, -32f}, {895.7f, 736.5f, 26f},
+            {977.3f, 713.1f, -14f}, {1075.9f, 740.1f, 36f}, {1154.7f, 710.1f, -20f},
+            {1231.5f, 727.7f, 8f}
+        };
+
+        for (int i = 0; i < poses.length; i++) {
+            float[] pose = poses[i];
+            Group position = new Group();
+            position.setPosition(pose[0], HEIGHT - pose[1]);
+
+            DominoTile tile = new DominoTile(dominoAssets, 0, 0);
+            tile.setFaceDown(true);
+            tile.setBounds(-22f, -41f, 44f, 82f);
+            tile.setRotation(pose[2]);
+
+            position.addActor(tile);
+            shuffleLayer.addActor(position);
+        }
+    }
+
+    private void updateShuffle() {
+        boolean shuffling = entranceTime >= ENTRANCE_DURATION
+            && entranceTime < PREPARATION_END;
+        shuffleLayer.setVisible(shuffling);
+
+        if (!shuffling) {
+            return;
+        }
+
+        float progress = (entranceTime - ENTRANCE_DURATION) / SHUFFLE_DURATION;
+        float easedProgress = smooth(progress);
+        float centerX = 974f;
+        float centerY = 540f;
+        float verticalScale = 0.82f;
+        double fullTurn = 2 * Math.PI;
+        double pull = Math.sin(Math.PI * progress);
+
+        for (int i = 0; i < shuffleLayer.getChildren().size; i++) {
+            Group position = (Group) shuffleLayer.getChildren().get(i);
+            float startX = position.getX();
+            float startY = position.getY();
+
+            float offsetX = startX - centerX;
+            float offsetY = (startY - centerY) / verticalScale;
+            double turns = 0.68 + 0.07 * (i % 4);
+            double angle = fullTurn * turns * easedProgress;
+
+            double distanceFromCenter = Math.hypot(offsetX, offsetY);
+            double centerWeight = 1.0 - Math.min(distanceFromCenter / 320.0, 1.0);
+            double pullStrength = 0.20 + 0.12 * centerWeight;
+
+            double radiusScale = 1.0 - pullStrength * pull * pull
+                * (1.0 + Math.sin(fullTurn * progress + i * 1.7));
+
+            double cos = Math.cos(angle);
+            double sin = Math.sin(angle);
+            float x = centerX + (float) (radiusScale * (offsetX * cos - offsetY * sin));
+            float y = centerY + (float) (verticalScale * radiusScale
+                * (offsetX * sin + offsetY * cos));
+
+            position.getChildren().first().setPosition(
+                x - startX - 22f,
+                y - startY - 41f
+            );
+        }
+    }
+
     private void updateEntrance() {
         float fadeProgress = Math.min(entranceTime / 0.8f, 1f);
         float fade = fadeProgress * (3f - 2f * fadeProgress);
@@ -100,8 +180,9 @@ public class MatchScreen extends ScreenAdapter {
         floorBackground.setVisible(showTop);
         tableImage.setVisible(showTop);
 
-        tilesLayer.setVisible(entranceTime >= 4.4f);
-        hudLayer.setVisible(entranceTime >= 4.4f);
+        updateShuffle();
+        tilesLayer.setVisible(entranceTime >= PREPARATION_END);
+        hudLayer.setVisible(entranceTime >= PREPARATION_END);
     }
 
     private float smooth(float progress) {
@@ -150,6 +231,10 @@ public class MatchScreen extends ScreenAdapter {
         stage.addActor(seatedBackground);
 
         dominoAssets = new DominoAssets();
+        shuffleLayer.setTouchable(Touchable.disabled);
+        shuffleLayer.setVisible(false);
+        createShuffleTiles();
+        stage.addActor(shuffleLayer);
 
         tilesLayer = new Group();
         tilesLayer.setSize(WIDTH,HEIGHT);
@@ -496,7 +581,7 @@ public class MatchScreen extends ScreenAdapter {
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
 
-        entranceTime = Math.min(entranceTime + dt, 4.4f);
+        entranceTime = Math.min(entranceTime + dt, PREPARATION_END);
         updateEntrance();
 
         ScreenUtils.clear(0f, 0f, 0f, 1f);
