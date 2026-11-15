@@ -118,6 +118,9 @@ public class MatchScreen extends ScreenAdapter {
 
     private boolean closedRoundPreview;
 
+    private final Group redistributionMessage;
+    private boolean redistributingTie;
+
     public MatchScreen(Runnable onLeaveMatch) {
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
@@ -258,6 +261,9 @@ public class MatchScreen extends ScreenAdapter {
 
         roundResultView = new RoundResultView();
         hudLayer.addActor(roundResultView);
+
+        redistributionMessage = roundResultView.createRedistributionMessage();
+        stage.getRoot().addActorBefore(hudLayer, redistributionMessage);
 
         nextRoundButton = createButton("Próxima rodada");
         nextRoundButton.setY(105f);
@@ -435,8 +441,12 @@ public class MatchScreen extends ScreenAdapter {
         tableImage.setVisible(showTop);
 
         updateShuffle();
-        tilesLayer.setVisible(entranceTime >= PREPARATION_END);
-        hudLayer.setVisible(entranceTime >= PREPARATION_END);
+        boolean readyToPlay = entranceTime >= PREPARATION_END;
+        boolean showRedistribution = redistributingTie && !readyToPlay;
+
+        tilesLayer.setVisible(readyToPlay || showRedistribution);
+        hudLayer.setVisible(readyToPlay);
+        redistributionMessage.setVisible(showRedistribution);
     }
 
     private float smooth(float progress) {
@@ -500,6 +510,12 @@ public class MatchScreen extends ScreenAdapter {
 
     private void beginNextRound() {
         Player nextStarter = round.winner() != null ? round.winner() : roundOpeningPreference;
+
+        if (round.isBlocked() && round.winner() == null) {
+            startTieRedistribution(nextStarter);
+            return;
+        }
+
         if (matchIsFinished()) {
             humanCaps = 0;
             opponentCaps = 0;
@@ -508,6 +524,21 @@ public class MatchScreen extends ScreenAdapter {
             opponentScoreView.setDisplayedScore(0);
         }
         startRound(nextStarter);
+    }
+
+    private void startTieRedistribution(Player preferredStarter) {
+        redistributingTie = true;
+        entranceFinished = false;
+        entranceTime = ENTRANCE_DURATION;
+
+        startRound(preferredStarter);
+
+        for (DominoTile tile : handActors.values()) {
+            tile.setVisible(false);
+        }
+        cavaView.setVisible(false);
+
+        updateEntrance();
     }
 
     private void createHandActor(Stone stone, Player player) {
@@ -1419,6 +1450,14 @@ public class MatchScreen extends ScreenAdapter {
 
         if (!entranceFinished && entranceTime >= PREPARATION_END) {
             entranceFinished = true;
+
+            if (redistributingTie) {
+                redistributingTie = false;
+                for (DominoTile tile : handActors.values()) {
+                    tile.setVisible(true);
+                }
+            }
+
             refreshTurn();
         }
 
@@ -1430,6 +1469,11 @@ public class MatchScreen extends ScreenAdapter {
         if (closedRoundPreview) {
             roundResultView.act(dt);
         } else {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F10)
+                && entranceFinished && !movingStone && !round.isFinished()
+                && !roundResultView.isVisible() && stage.getActors().peek() == hudLayer) {
+                startTieRedistribution(roundOpeningPreference);
+            }
             simulateReconnection();
             if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
                 stage.act(dt);

@@ -145,6 +145,22 @@ public final class RoundResultView extends Group implements Disposable {
         reveal();
     }
 
+    public Group createRedistributionMessage() {
+        Group message = new Group();
+        message.setTouchable(Touchable.disabled);
+        message.setVisible(false);
+
+        Label title = label("EMBARALHANDO...", displayFont, CREAM, 560f, 848f, 800f, 72f);
+        title.setFontScale(0.6f);
+        message.addActor(title);
+
+        message.addActor(label(
+            "Uma nova rodada vai começar", textFont, CREAM, 560f, 176f, 800f, 44f
+        ));
+
+        return message;
+    }
+
     public void showWinningPlay(boolean humanWon) {
         resetContent();
 
