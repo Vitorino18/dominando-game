@@ -46,6 +46,9 @@ public final class RoundResultView extends Group implements Disposable {
     private final Image humanCap;
     private final Image opponentCap;
     private final Image capGlow;
+    private final Image backCoin;
+    private final Image frontCoin;
+    private final Label coinRewardLabel;
 
     public RoundResultView() {
         setSize(1920f, 1080f);
@@ -74,6 +77,16 @@ public final class RoundResultView extends Group implements Disposable {
         rewardLabel.setAlignment(Align.left);
         rewardLabel.setVisible(false);
         addActor(rewardLabel);
+
+        Texture coinTexture = load(Gdx.files.internal("ui/result/moeda.png"));
+
+        backCoin = addImage(coinTexture, 0f, 0f, 96f, 96f);
+        frontCoin = addImage(coinTexture, 0f, 0f, 96f, 96f);
+
+        coinRewardLabel = label("+2 MOEDAS", displayFont, CREAM, 0f, 0f, 330f, 80f);
+        coinRewardLabel.setFontScale(0.5f);
+        coinRewardLabel.setAlignment(Align.left);
+        addActor(coinRewardLabel);
     }
 
     private Texture createCapGlow() {
@@ -142,6 +155,41 @@ public final class RoundResultView extends Group implements Disposable {
         rewardLabel.setVisible(true);
     }
 
+    public void showWinningCoins() {
+        humanCap.setVisible(false);
+        capGlow.setVisible(false);
+        rewardLabel.setVisible(false);
+
+        float coinSize = 96f;
+        float overlapOffset = 24f;
+        float gap = 16f;
+        float pileWidth = coinSize + overlapOffset;
+        float textWidth = coinRewardLabel.getPrefWidth();
+        float pileX = (getWidth() - pileWidth - gap - textWidth) / 2f;
+
+        float backY = 76f;
+        float frontX = pileX + overlapOffset;
+        float frontY = backY + overlapOffset;
+
+        backCoin.setPosition(pileX, backY);
+        backCoin.setVisible(true);
+
+        frontCoin.setPosition(frontX, frontY + 16f);
+        frontCoin.setVisible(false);
+
+        coinRewardLabel.setBounds(pileX + pileWidth + gap, 96f, textWidth, 80f);
+        coinRewardLabel.setVisible(false);
+
+        frontCoin.addAction(Actions.sequence(
+            Actions.delay(0.10f),
+            Actions.run(() -> frontCoin.setVisible(true)),
+            Actions.moveTo(frontX, frontY, 0.15f, Interpolation.pow2In),
+            Actions.moveTo(frontX, frontY + 7f, 0.08f, Interpolation.pow2Out),
+            Actions.moveTo(frontX, frontY, 0.10f, Interpolation.pow2In),
+            Actions.run(() -> coinRewardLabel.setVisible(true))
+        ));
+    }
+
     public void showRoundWinner(boolean humanWon) {
         resetContent();
         capGlow.setVisible(true);
@@ -178,6 +226,10 @@ public final class RoundResultView extends Group implements Disposable {
         capGlow.setBounds(735f, 315f, 450f, 450f);
         description.setVisible(true);
         rewardLabel.setVisible(false);
+        backCoin.setVisible(false);
+        frontCoin.clearActions();
+        frontCoin.setVisible(false);
+        coinRewardLabel.setVisible(false);
     }
 
     private void showTitle(Image artwork, String fallback) {

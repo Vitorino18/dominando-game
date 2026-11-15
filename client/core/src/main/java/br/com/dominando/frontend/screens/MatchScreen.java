@@ -859,10 +859,19 @@ public class MatchScreen extends ScreenAdapter {
             );
         } else if (showWinningBoard) {
             roundResultView.showWinningPlay();
-            roundResultView.addAction(Actions.delay(1.5f, Actions.run(() -> {
-                playerScoreView.setDisplayedScore(humanCaps);
-                roundResultView.showWinningCap();
-            })));
+            roundResultView.addAction(Actions.sequence(
+                Actions.delay(1.5f),
+                Actions.run(() -> {
+                    playerScoreView.setDisplayedScore(humanCaps);
+                    roundResultView.showWinningCap();
+                }),
+                Actions.delay(2f),
+                Actions.run(roundResultView::showWinningCoins),
+                Actions.delay(2f),
+                Actions.fadeOut(0.25f, Interpolation.smooth),
+                Actions.run(this::beginNextRound)
+            ));
+            return;
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);
         }
