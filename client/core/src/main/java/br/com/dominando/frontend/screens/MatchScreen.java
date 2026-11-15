@@ -485,11 +485,15 @@ public class MatchScreen extends ScreenAdapter {
 
     private void startRematchWaiting() {
         roundResultView.showRematchWaiting();
-        roundResultView.addAction(Actions.sequence(
-            Actions.delay(5f),
-            Actions.run(roundResultView::showRematchAccepted),
-            Actions.delay(1.5f),
-            Actions.run(() -> closeFinalResult(this::startNewMatch))
+        roundResultView.addAction(Actions.delay(
+            5f, Actions.run(this::startAcceptedRematch)
+        ));
+    }
+
+    private void startAcceptedRematch() {
+        roundResultView.showRematchAccepted();
+        roundResultView.addAction(Actions.delay(
+            1.5f, Actions.run(() -> closeFinalResult(this::startNewMatch))
         ));
     }
 
@@ -1372,7 +1376,8 @@ public class MatchScreen extends ScreenAdapter {
 
     private void toggleClosedRoundPreview() {
         boolean finalPreview = Gdx.input.isKeyJustPressed(Input.Keys.F11);
-        if (!finalPreview && !Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+        boolean invitationPreview = Gdx.input.isKeyJustPressed(Input.Keys.F12);
+        if (!finalPreview && !invitationPreview && !Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
             return;
         }
 
@@ -1392,17 +1397,18 @@ public class MatchScreen extends ScreenAdapter {
 
         closedRoundPreview = true;
         stage.cancelTouchFocus();
-        if (finalPreview) {
+        if (finalPreview || invitationPreview) {
             roundResultView.showMatchWinner(!opponentWins, opponentWins ? 3 : 5, opponentWins ? 5 : 3);
+
+            if (invitationPreview) {
+                roundResultView.showRematchInvitation(this::startAcceptedRematch);
+            }
+
             Gdx.input.setInputProcessor(stage);
             return;
         }
 
         Gdx.input.setInputProcessor(null);
-        if (finalPreview) {
-            roundResultView.showMatchWinner(!opponentWins, opponentWins ? 3 : 5, opponentWins ? 5 : 3);
-            return;
-        }
         boolean tiePreview = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
 

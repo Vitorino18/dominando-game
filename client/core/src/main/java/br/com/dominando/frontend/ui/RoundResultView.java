@@ -266,6 +266,10 @@ public final class RoundResultView extends Group implements Disposable {
         finalReceipt.showAccepted();
     }
 
+    public void showRematchInvitation(Runnable onAccept) {
+        finalReceipt.showInvitation(onAccept);
+    }
+
     private void resetContent() {
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
@@ -319,6 +323,7 @@ public final class RoundResultView extends Group implements Disposable {
         private final Image[] waitingCaps = new Image[3];
         private float waitingTime;
         private final TextButton returnToStartButton;
+        private Runnable acceptRematch;
 
         FinalReceipt(Runnable onReturnToStart, Runnable onPlayAgain) {
             setBounds(610f, 120f, 700f, 840f);
@@ -355,7 +360,14 @@ public final class RoundResultView extends Group implements Disposable {
 
             returnToStartButton = createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart);
             addActor(returnToStartButton);
-            playAgainButton = createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, onPlayAgain);
+            playAgainButton = createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, () -> {
+                    if (acceptRematch != null) {
+                        acceptRematch.run();
+                    } else {
+                        onPlayAgain.run();
+                    }
+                }
+            );
             addActor(playAgainButton);
 
             loadingCaps.setTouchable(Touchable.disabled);
@@ -376,6 +388,9 @@ public final class RoundResultView extends Group implements Disposable {
         }
 
         void show(boolean humanWon, int human, int opponent) {
+            acceptRematch = null;
+            returnToStartButton.setText("VOLTAR AO INÍCIO");
+            playAgainButton.setText("JOGAR DE NOVO");
             playAgainButton.setVisible(true);
             loadingCaps.setVisible(false);
             receiptFooter.setText("A saideira pode esperar");
@@ -399,6 +414,14 @@ public final class RoundResultView extends Group implements Disposable {
             loadingCaps.setVisible(true);
         }
 
+        void showInvitation(Runnable onAccept) {
+            acceptRematch = onAccept;
+            headline.setText("BORA OUTRA?");
+            detail.setText("O adversário pediu uma revanche");
+            returnToStartButton.setText("AGORA NÃO");
+            playAgainButton.setText("ACEITAR REVANCHE");
+        }
+
         void showAccepted() {
             headline.setText("REVANCHE ACEITA");
             detail.setText("Preparando uma nova partida");
@@ -406,6 +429,8 @@ public final class RoundResultView extends Group implements Disposable {
             loadingCaps.setY(60f);
             receiptFooter.setText("Arrumando a mesa...");
             receiptFooter.setY(152f);
+            playAgainButton.setVisible(false);
+            loadingCaps.setVisible(true);
         }
 
         @Override
