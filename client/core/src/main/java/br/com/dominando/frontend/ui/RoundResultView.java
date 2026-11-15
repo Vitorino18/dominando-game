@@ -21,6 +21,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.math.MathUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -257,6 +258,10 @@ public final class RoundResultView extends Group implements Disposable {
         return isVisible() && finalReceipt.isVisible();
     }
 
+    public void showRematchWaiting() {
+        finalReceipt.showWaiting();
+    }
+
     private void resetContent() {
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
@@ -304,6 +309,11 @@ public final class RoundResultView extends Group implements Disposable {
         private final Label detail;
         private final Label humanScore;
         private final Label opponentScore;
+        private final TextButton playAgainButton;
+        private final Label receiptFooter;
+        private final Group loadingCaps = new Group();
+        private final Image[] waitingCaps = new Image[3];
+        private float waitingTime;
 
         FinalReceipt(Runnable onReturnToStart, Runnable onPlayAgain) {
             setBounds(610f, 120f, 700f, 840f);
@@ -339,19 +349,70 @@ public final class RoundResultView extends Group implements Disposable {
             addActor(opponentScore);
 
             addActor(createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart));
-            addActor(createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, onPlayAgain));
+            playAgainButton = createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, onPlayAgain);
+            addActor(playAgainButton);
 
-            addActor(label("A saideira pode esperar", captionFont, BROWN, 150f, 64f, 400f, 32f));
+            loadingCaps.setTouchable(Touchable.disabled);
+            loadingCaps.setVisible(false);
+
+            for (int i = 0; i < waitingCaps.length; i++) {
+                Image cap = new Image(humanCap.getDrawable());
+                cap.setScaling(Scaling.fit);
+                cap.setBounds(242f + 78f * i, 130f, 60f, 60f);
+                waitingCaps[i] = cap;
+                loadingCaps.addActor(cap);
+            }
+
+            addActor(loadingCaps);
+
+            receiptFooter = label("A saideira pode esperar", captionFont, BROWN, 150f, 64f, 400f, 32f);
+            addActor(receiptFooter);
         }
 
         void show(boolean humanWon, int human, int opponent) {
+            playAgainButton.setVisible(true);
+            loadingCaps.setVisible(false);
+            receiptFooter.setText("A saideira pode esperar");
+            receiptFooter.setY(64f);
             headline.setText(humanWon ? "A PARTIDA É SUA!" : "O ADVERSÁRIO VENCEU!");
-            detail.setText(humanWon
-                ? "Você conquistou " + human + " tampinhas."
-                : "O adversário conquistou " + opponent + " tampinhas.");
+            detail.setText(humanWon ? "Você conquistou " + human + " tampinhas." : "O adversário conquistou " + opponent + " tampinhas.");
             humanScore.setText(Integer.toString(human));
             opponentScore.setText(Integer.toString(opponent));
             setVisible(true);
+        }
+
+        void showWaiting() {
+            headline.setText("MAIS UMA?");
+            detail.setText("Pedido enviado ao adversário");
+            playAgainButton.setVisible(false);
+            receiptFooter.setText("Aguardando o adversário...");
+            receiptFooter.setY(82f);
+            waitingTime = 0f;
+            loadingCaps.setVisible(true);
+        }
+
+        @Override
+        public void act(float delta) {
+            super.act(delta);
+
+            if (!loadingCaps.isVisible() || !RoundResultView.this.isVisible()) {
+                return;
+            }
+
+            float stepDuration = 0.45f;
+            float cycleDuration = stepDuration * waitingCaps.length;
+            waitingTime = (waitingTime + delta) % cycleDuration;
+
+            int active = Math.min(waitingCaps.length - 1, (int) (waitingTime / stepDuration));
+            float progress = (waitingTime - active * stepDuration) / stepDuration;
+            float pulse = MathUtils.sin(MathUtils.PI * progress);
+            float baseAlpha = 0.28f;
+
+            for (int i = 0; i < waitingCaps.length; i++) {
+                waitingCaps[i].getColor().a = i == active
+                    ? MathUtils.lerp(baseAlpha, 1f, pulse)
+                    : baseAlpha;
+            }
         }
     }
 

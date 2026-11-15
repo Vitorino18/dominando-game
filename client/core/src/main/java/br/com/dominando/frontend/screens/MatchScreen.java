@@ -262,7 +262,10 @@ public class MatchScreen extends ScreenAdapter {
 
         gameHud.addActor(passButton);
 
-        roundResultView = new RoundResultView(() -> closeFinalResult(() -> Gdx.app.postRunnable(onLeaveMatch)), () -> closeFinalResult(this::startNewMatch));
+        roundResultView = new RoundResultView(
+            () -> closeFinalResult(() -> Gdx.app.postRunnable(onLeaveMatch)),
+            this::startRematchWaiting
+        );
         hudLayer.addActor(roundResultView);
 
         redistributionMessage = roundResultView.createRedistributionMessage();
@@ -478,6 +481,14 @@ public class MatchScreen extends ScreenAdapter {
         layoutHand(Player.HUMAN);
         layoutHand(Player.OPPONENT);
         refreshTurn();
+    }
+
+    private void startRematchWaiting() {
+        roundResultView.showRematchWaiting();
+        roundResultView.addAction(Actions.delay(
+            5f,
+            Actions.run(() -> closeFinalResult(this::startNewMatch))
+        ));
     }
 
     private void closeFinalResult(Runnable nextAction) {
