@@ -485,8 +485,10 @@ public class MatchScreen extends ScreenAdapter {
 
     private void startRematchWaiting() {
         roundResultView.showRematchWaiting();
-        roundResultView.addAction(Actions.delay(
-            5f,
+        roundResultView.addAction(Actions.sequence(
+            Actions.delay(5f),
+            Actions.run(roundResultView::showRematchAccepted),
+            Actions.delay(1.5f),
             Actions.run(() -> closeFinalResult(this::startNewMatch))
         ));
     }

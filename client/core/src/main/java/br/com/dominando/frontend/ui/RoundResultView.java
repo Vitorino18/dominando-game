@@ -262,6 +262,10 @@ public final class RoundResultView extends Group implements Disposable {
         finalReceipt.showWaiting();
     }
 
+    public void showRematchAccepted() {
+        finalReceipt.showAccepted();
+    }
+
     private void resetContent() {
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
@@ -314,6 +318,7 @@ public final class RoundResultView extends Group implements Disposable {
         private final Group loadingCaps = new Group();
         private final Image[] waitingCaps = new Image[3];
         private float waitingTime;
+        private final TextButton returnToStartButton;
 
         FinalReceipt(Runnable onReturnToStart, Runnable onPlayAgain) {
             setBounds(610f, 120f, 700f, 840f);
@@ -348,7 +353,8 @@ public final class RoundResultView extends Group implements Disposable {
             addActor(humanScore);
             addActor(opponentScore);
 
-            addActor(createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart));
+            returnToStartButton = createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart);
+            addActor(returnToStartButton);
             playAgainButton = createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, onPlayAgain);
             addActor(playAgainButton);
 
@@ -378,6 +384,7 @@ public final class RoundResultView extends Group implements Disposable {
             detail.setText(humanWon ? "Você conquistou " + human + " tampinhas." : "O adversário conquistou " + opponent + " tampinhas.");
             humanScore.setText(Integer.toString(human));
             opponentScore.setText(Integer.toString(opponent));
+            returnToStartButton.setVisible(true);
             setVisible(true);
         }
 
@@ -388,7 +395,17 @@ public final class RoundResultView extends Group implements Disposable {
             receiptFooter.setText("Aguardando o adversário...");
             receiptFooter.setY(82f);
             waitingTime = 0f;
+            loadingCaps.setY(0f);
             loadingCaps.setVisible(true);
+        }
+
+        void showAccepted() {
+            headline.setText("REVANCHE ACEITA");
+            detail.setText("Preparando uma nova partida");
+            returnToStartButton.setVisible(false);
+            loadingCaps.setY(60f);
+            receiptFooter.setText("Arrumando a mesa...");
+            receiptFooter.setY(152f);
         }
 
         @Override
