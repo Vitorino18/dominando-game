@@ -27,6 +27,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.scenes.scene2d.actions.SequenceAction;
 
 import br.com.dominando.frontend.settings.GameSettings;
 import br.com.dominando.frontend.ui.OpeningDialogs;
@@ -819,12 +820,12 @@ public class MatchScreen extends ScreenAdapter {
             opponentCaps++;
         }
 
-        boolean showWinningBoard = winner == Player.HUMAN && !round.isBlocked() && !matchIsFinished();
+        boolean showWinningBoard = winner != null && !round.isBlocked() && !matchIsFinished();
 
         if (!showWinningBoard) {
             playerScoreView.setDisplayedScore(humanCaps);
+            opponentScoreView.setDisplayedScore(opponentCaps);
         }
-        opponentScoreView.setDisplayedScore(opponentCaps);
         roundScored = true;
 
         for (DominoTile tile : handActors.values()) {
@@ -858,19 +859,27 @@ public class MatchScreen extends ScreenAdapter {
                 round.handPoints(Player.HUMAN), round.handPoints(Player.OPPONENT)
             );
         } else if (showWinningBoard) {
-            roundResultView.showWinningPlay();
-            roundResultView.addAction(Actions.sequence(
+            boolean humanWon = winner == Player.HUMAN;
+            roundResultView.showWinningPlay(humanWon);
+
+            SequenceAction result = Actions.sequence(
                 Actions.delay(1.5f),
                 Actions.run(() -> {
                     playerScoreView.setDisplayedScore(humanCaps);
-                    roundResultView.showWinningCap();
+                    opponentScoreView.setDisplayedScore(opponentCaps);
+                    roundResultView.showWinningCap(humanWon);
                 }),
-                Actions.delay(2f),
-                Actions.run(roundResultView::showWinningCoins),
-                Actions.delay(2f),
-                Actions.fadeOut(0.25f, Interpolation.smooth),
-                Actions.run(this::beginNextRound)
-            ));
+                Actions.delay(2f)
+            );
+
+            if (humanWon) {
+                result.addAction(Actions.run(roundResultView::showWinningCoins));
+                result.addAction(Actions.delay(2f));
+            }
+
+            result.addAction(Actions.fadeOut(0.25f, Interpolation.smooth));
+            result.addAction(Actions.run(this::beginNextRound));
+            roundResultView.addAction(result);
             return;
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);

@@ -125,20 +125,23 @@ public final class RoundResultView extends Group implements Disposable {
         reveal();
     }
 
-    public void showWinningPlay() {
+    public void showWinningPlay(boolean humanWon) {
         resetContent();
 
-        if (humanTitle != null) {
-            humanTitle.setBounds(708f, 920f, 504f, 154f);
+        Image artwork = humanWon ? humanTitle : opponentTitle;
+        if (artwork != null) {
+            artwork.setBounds(708f, 920f, 504f, 154f);
         }
+
         fallbackTitle.setY(872f);
-        showTitle(humanTitle, "RODADA SUA!");
+        showTitle(artwork, humanWon ? "RODADA SUA!" : "RODADA DO ADVERSÁRIO");
 
         description.setVisible(false);
         reveal();
     }
 
-    public void showWinningCap() {
+    public void showWinningCap(boolean humanWon) {
+        Image cap = humanWon ? humanCap : opponentCap;
         float centerX = getWidth() / 2f;
         float capSize = 120f;
         float gap = 16f;
@@ -146,12 +149,13 @@ public final class RoundResultView extends Group implements Disposable {
         float totalWidth = capSize + gap + textWidth;
         float capX = centerX - totalWidth / 2f;
 
-        humanCap.setBounds(capX, 76f, capSize, capSize);
+        cap.setBounds(capX, 76f, capSize, capSize);
         capGlow.setBounds(capX + (capSize - 220f) / 2f, 26f, 220f, 220f);
+        capGlow.setColor(humanWon ? 1f : 0.45f, 1f, 1f, 1f);
         rewardLabel.setBounds(capX + capSize + gap, 96f, textWidth, 80f);
 
         capGlow.setVisible(true);
-        humanCap.setVisible(true);
+        cap.setVisible(true);
         rewardLabel.setVisible(true);
     }
 
@@ -222,6 +226,7 @@ public final class RoundResultView extends Group implements Disposable {
         humanCap.setVisible(false);
         opponentCap.setVisible(false);
         capGlow.setVisible(false);
+        capGlow.setColor(Color.WHITE);
         fallbackTitle.setY(730f);
         capGlow.setBounds(735f, 315f, 450f, 450f);
         description.setVisible(true);
