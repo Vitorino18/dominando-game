@@ -823,7 +823,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         boolean showWinningBoard = winner != null && !round.isBlocked() && !matchIsFinished();
-        boolean showClosedBoard = round.isBlocked() && winner != null && !matchIsFinished();
+        boolean showClosedBoard = round.isBlocked() && !matchIsFinished();
 
         if (!showWinningBoard && !showClosedBoard) {
             for (DominoTile tile : chainActors.values()) {
@@ -1392,9 +1392,16 @@ public class MatchScreen extends ScreenAdapter {
         closedRoundPreview = true;
         stage.cancelTouchFocus();
         Gdx.input.setInputProcessor(null);
-        roundResultView.showCounts(
-            false, !opponentWins, opponentWins ? 34 : 12, opponentWins ? 12 : 34
-        );
+        boolean tiePreview = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
+
+        if (tiePreview) {
+            roundResultView.showCounts(true, false, 15, 15);
+        } else {
+            roundResultView.showCounts(
+                false, !opponentWins, opponentWins ? 34 : 12, opponentWins ? 12 : 34
+            );
+        }
     }
 
     private void closeClosedRoundPreview() {

@@ -129,16 +129,19 @@ public final class RoundResultView extends Group implements Disposable {
     public void showCounts(boolean tie, boolean humanWon, int human, int opponent) {
         resetContent();
         showTitle(tie ? tieTitle : closedTitle, tie ? "EMPATE!" : "MESA FECHADA");
-        if (tie) {
-            humanCard.show(human, "PONTOS", false);
-            opponentCard.show(opponent, "PONTOS", false);
-        } else {
-            roundCountReceipt.show(humanWon, human, opponent);
-            closedRoundDimmer.setVisible(true);
-        }
-        description.setPosition(510f, 327f);
-        description.setText(tie ? "Ninguém recebe tampinha. Vamos embaralhar e distribuir novamente." : humanWon ? "Você venceu com a menor soma de pontos." : "O adversário venceu com a menor soma de pontos.");
+
+        closedRoundDimmer.setVisible(true);
+        roundCountReceipt.show(tie, humanWon, human, opponent);
+
         description.setVisible(tie);
+        if (tie) {
+            description.setPosition(510f, 327f);
+            description.setText(
+                "Ninguém recebe tampinha ou moedas.\n"
+                    + "Vamos embaralhar e distribuir novamente."
+            );
+        }
+
         reveal();
     }
 
@@ -306,19 +309,24 @@ public final class RoundResultView extends Group implements Disposable {
             addActor(winnerStamp);
         }
 
-        void show(boolean humanWon, int human, int opponent) {
+        void show(boolean tie, boolean humanWon, int human, int opponent) {
             humanPoints.setText(Integer.toString(human));
             opponentPoints.setText(Integer.toString(opponent));
 
-            Label winningPoints = humanWon ? humanPoints : opponentPoints;
-            Image cap = humanWon ? humanCap : opponentCap;
-            float scoreCenterX = winningPoints.getX() + winningPoints.getWidth() / 2f;
-            float scoreRight = scoreCenterX + winningPoints.getPrefWidth() / 2f;
+            winnerCap.setVisible(!tie);
+            winnerStamp.setVisible(!tie);
 
-            winnerCap.setDrawable(cap.getDrawable());
-            winnerCap.setPosition(scoreRight + 12f, 99f);
-            winnerStamp.setX(winningPoints.getX());
-            winnerStamp.setColor(humanWon ? BROWN : GREEN);
+            if (!tie) {
+                Label winningPoints = humanWon ? humanPoints : opponentPoints;
+                Image cap = humanWon ? humanCap : opponentCap;
+                float scoreCenterX = winningPoints.getX() + winningPoints.getWidth() / 2f;
+                float scoreRight = scoreCenterX + winningPoints.getPrefWidth() / 2f;
+
+                winnerCap.setDrawable(cap.getDrawable());
+                winnerCap.setPosition(scoreRight + 12f, 99f);
+                winnerStamp.setX(winningPoints.getX());
+                winnerStamp.setColor(humanWon ? BROWN : GREEN);
+            }
 
             clearActions();
             setY(473f);
