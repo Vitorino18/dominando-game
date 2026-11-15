@@ -45,15 +45,27 @@ public final class RoundResultView extends Group implements Disposable {
     private final CountCard opponentCard;
     private final Image humanCap;
     private final Image opponentCap;
+    private final RoundCountReceipt roundCountReceipt;
     private final Image capGlow;
     private final Image backCoin;
     private final Image frontCoin;
     private final Label coinRewardLabel;
+    private final Image closedRoundDimmer;
 
     public RoundResultView() {
         setSize(1920f, 1080f);
         setTouchable(Touchable.disabled);
         setVisible(false);
+
+        Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        try {
+            pixel.setColor(0f, 0f, 0f, 0.22f);
+            pixel.fill();
+            closedRoundDimmer = addImage(own(new Texture(pixel)), 0f, 0f, getWidth(), getHeight());
+            closedRoundDimmer.toBack();
+        } finally {
+            pixel.dispose();
+        }
 
         fallbackTitle = label("", titleFont, CREAM, 480f, 730f, 960f, 240f);
         addActor(fallbackTitle);
@@ -67,6 +79,8 @@ public final class RoundResultView extends Group implements Disposable {
         opponentCap = addImage(load(Gdx.files.internal("ui/score/tampinha-verde.png")), 840f, 420f, 240f, 240f);
         humanCap.setScaling(Scaling.fit);
         opponentCap.setScaling(Scaling.fit);
+        roundCountReceipt = new RoundCountReceipt();
+        addActor(roundCountReceipt);
 
         description = label("", textFont, CREAM, 510f, 330f, 900f, 100f);
         description.setWrap(true);
@@ -115,13 +129,16 @@ public final class RoundResultView extends Group implements Disposable {
     public void showCounts(boolean tie, boolean humanWon, int human, int opponent) {
         resetContent();
         showTitle(tie ? tieTitle : closedTitle, tie ? "EMPATE!" : "MESA FECHADA");
-        humanCard.show(human, "PONTOS", !tie && humanWon);
-        opponentCard.show(opponent, "PONTOS", !tie && !humanWon);
+        if (tie) {
+            humanCard.show(human, "PONTOS", false);
+            opponentCard.show(opponent, "PONTOS", false);
+        } else {
+            roundCountReceipt.show(humanWon, human, opponent);
+            closedRoundDimmer.setVisible(true);
+        }
         description.setPosition(510f, 327f);
-        description.setText(tie
-            ? "Ninguém recebe tampinha. Vamos embaralhar e distribuir novamente."
-            : humanWon ? "Você venceu com a menor soma de pontos."
-              : "O adversário venceu com a menor soma de pontos.");
+        description.setText(tie ? "Ninguém recebe tampinha. Vamos embaralhar e distribuir novamente." : humanWon ? "Você venceu com a menor soma de pontos." : "O adversário venceu com a menor soma de pontos.");
+        description.setVisible(tie);
         reveal();
     }
 
@@ -235,6 +252,8 @@ public final class RoundResultView extends Group implements Disposable {
         frontCoin.clearActions();
         frontCoin.setVisible(false);
         coinRewardLabel.setVisible(false);
+        roundCountReceipt.setVisible(false);
+        closedRoundDimmer.setVisible(false);
     }
 
     private void showTitle(Image artwork, String fallback) {
@@ -252,6 +271,66 @@ public final class RoundResultView extends Group implements Disposable {
             getColor().a = 0f;
             setVisible(true);
             addAction(Actions.fadeIn(0.28f, Interpolation.smooth));
+        }
+    }
+
+    private final class RoundCountReceipt extends Group {
+        private final Label humanPoints;
+        private final Label opponentPoints;
+        private final Image winnerCap;
+        private final Label winnerStamp;
+
+        RoundCountReceipt() {
+            setBounds(610f, 455f, 700f, 260f);
+
+            Image paper = new Image(load(Gdx.files.internal("ui/result/comanda-rodada.png")));
+            paper.setSize(700f, 260f);
+            addActor(paper);
+
+            addActor(label("VOCÊ", textFont, GREEN, 50f, 177f, 250f, 44f));
+            addActor(label("ADVERSÁRIO", textFont, GREEN, 400f, 177f, 250f, 44f));
+
+            humanPoints = label("", displayFont, GREEN, 50f, 76f, 250f, 96f);
+            opponentPoints = label("", displayFont, GREEN, 400f, 76f, 250f, 96f);
+            addActor(humanPoints);
+            addActor(opponentPoints);
+
+            addActor(label("PONTOS", captionFont, BROWN, 250f, 36f, 200f, 36f));
+
+            winnerCap = new Image();
+            winnerCap.setSize(50f, 50f);
+            addActor(winnerCap);
+
+            winnerStamp = label("VENCEU A RODADA", displayFont, GREEN, 50f, 48f, 250f, 30f);
+            winnerStamp.setFontScale(0.30f);
+            addActor(winnerStamp);
+        }
+
+        void show(boolean humanWon, int human, int opponent) {
+            humanPoints.setText(Integer.toString(human));
+            opponentPoints.setText(Integer.toString(opponent));
+
+            Label winningPoints = humanWon ? humanPoints : opponentPoints;
+            Image cap = humanWon ? humanCap : opponentCap;
+            float scoreCenterX = winningPoints.getX() + winningPoints.getWidth() / 2f;
+            float scoreRight = scoreCenterX + winningPoints.getPrefWidth() / 2f;
+
+            winnerCap.setDrawable(cap.getDrawable());
+            winnerCap.setPosition(scoreRight + 12f, 99f);
+            winnerStamp.setX(winningPoints.getX());
+            winnerStamp.setColor(humanWon ? BROWN : GREEN);
+
+            clearActions();
+            setY(473f);
+            getColor().a = 0f;
+            setVisible(true);
+            addAction(Actions.sequence(
+                Actions.delay(0.20f),
+                Actions.parallel(
+                    Actions.moveTo(getX(), 455f, 0.22f, Interpolation.smooth),
+                    Actions.fadeIn(0.22f, Interpolation.smooth)
+                )
+            ));
         }
     }
 

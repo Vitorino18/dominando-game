@@ -116,6 +116,8 @@ public class MatchScreen extends ScreenAdapter {
     private final CavaView dealCavaView;
     private final PassButton passButton;
 
+    private boolean closedRoundPreview;
+
     public MatchScreen(Runnable onLeaveMatch) {
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
@@ -821,10 +823,12 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         boolean showWinningBoard = winner != null && !round.isBlocked() && !matchIsFinished();
+        boolean showClosedBoard = round.isBlocked() && winner != null && !matchIsFinished();
 
-        if (!showWinningBoard) {
-            playerScoreView.setDisplayedScore(humanCaps);
-            opponentScoreView.setDisplayedScore(opponentCaps);
+        if (!showWinningBoard && !showClosedBoard) {
+            for (DominoTile tile : chainActors.values()) {
+                tile.setVisible(false);
+            }
         }
         roundScored = true;
 
@@ -1366,6 +1370,39 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
+    private void toggleClosedRoundPreview() {
+        if (!Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+            return;
+        }
+
+        if (closedRoundPreview) {
+            closeClosedRoundPreview();
+            Gdx.input.setInputProcessor(stage);
+            return;
+        }
+
+        if (!entranceFinished || movingStone || round.isFinished()
+            || roundResultView.isVisible() || stage.getActors().peek() != hudLayer) {
+            return;
+        }
+
+        boolean opponentWins = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+
+        closedRoundPreview = true;
+        stage.cancelTouchFocus();
+        Gdx.input.setInputProcessor(null);
+        roundResultView.showCounts(
+            false, !opponentWins, opponentWins ? 34 : 12, opponentWins ? 12 : 34
+        );
+    }
+
+    private void closeClosedRoundPreview() {
+        closedRoundPreview = false;
+        roundResultView.clearActions();
+        roundResultView.setVisible(false);
+    }
+
     @Override
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
@@ -1381,11 +1418,17 @@ public class MatchScreen extends ScreenAdapter {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
 
         stage.getViewport().apply();
-        simulateReconnection();
+        toggleClosedRoundPreview();
 
-        if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
-            stage.act(dt);
+        if (closedRoundPreview) {
+            roundResultView.act(dt);
+        } else {
+            simulateReconnection();
+            if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
+                stage.act(dt);
+            }
         }
+
         stage.draw();
     }
 
@@ -1396,6 +1439,10 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        if (closedRoundPreview) {
+            closeClosedRoundPreview();
+        }
+
         if (Gdx.input.getInputProcessor() == stage) {
             Gdx.input.setInputProcessor(null);
         }
