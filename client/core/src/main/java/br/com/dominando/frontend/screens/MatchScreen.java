@@ -819,15 +819,21 @@ public class MatchScreen extends ScreenAdapter {
             opponentCaps++;
         }
 
-        playerScoreView.setDisplayedScore(humanCaps);
+        boolean showWinningBoard = winner == Player.HUMAN && !round.isBlocked() && !matchIsFinished();
+
+        if (!showWinningBoard) {
+            playerScoreView.setDisplayedScore(humanCaps);
+        }
         opponentScoreView.setDisplayedScore(opponentCaps);
         roundScored = true;
 
         for (DominoTile tile : handActors.values()) {
             tile.setVisible(false);
         }
-        for (DominoTile tile : chainActors.values()) {
-            tile.setVisible(false);
+        if (!showWinningBoard) {
+            for (DominoTile tile : chainActors.values()) {
+                tile.setVisible(false);
+            }
         }
         cavaView.setVisible(false);
         playerInfoView.setVisible(false);
@@ -851,6 +857,12 @@ public class MatchScreen extends ScreenAdapter {
                 winner == null, winner == Player.HUMAN,
                 round.handPoints(Player.HUMAN), round.handPoints(Player.OPPONENT)
             );
+        } else if (showWinningBoard) {
+            roundResultView.showWinningPlay();
+            roundResultView.addAction(Actions.delay(1.5f, Actions.run(() -> {
+                playerScoreView.setDisplayedScore(humanCaps);
+                roundResultView.showWinningCap();
+            })));
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);
         }

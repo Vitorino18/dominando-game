@@ -36,14 +36,16 @@ public final class RoundResultView extends Group implements Disposable {
 
     private final Image closedTitle = optionalTitle("mesa-fechada.png", 600f, 730f, 720f, 240f);
     private final Image tieTitle = optionalTitle("empate.png", 660f, 750f, 600f, 200f);
-    private final Image humanTitle = optionalTitle("rodada-sua.png", 600f, 730f, 720f, 240f);
-    private final Image opponentTitle = optionalTitle("rodada-adversario.png", 600f, 730f, 720f, 240f);
+    private final Image humanTitle = optionalTitle("rodada-sua.png", 600f, 690f, 720f, 220f);
+    private final Image opponentTitle = optionalTitle("rodada-adversario.png", 600f, 690f, 720f, 220f);
     private final Label fallbackTitle;
     private final Label description;
+    private final Label rewardLabel;
     private final CountCard humanCard;
     private final CountCard opponentCard;
     private final Image humanCap;
     private final Image opponentCap;
+    private final Image capGlow;
 
     public RoundResultView() {
         setSize(1920f, 1080f);
@@ -57,14 +59,44 @@ public final class RoundResultView extends Group implements Disposable {
         addActor(humanCard);
         addActor(opponentCard);
 
-        humanCap = addImage(load(Gdx.files.internal("ui/score/tampinha-amarela.png")), 880f, 220f, 160f, 160f);
-        opponentCap = addImage(load(Gdx.files.internal("ui/score/tampinha-verde.png")), 880f, 220f, 160f, 160f);
+        capGlow = addImage(createCapGlow(), 735f, 315f, 450f, 450f);
+        humanCap = addImage(load(Gdx.files.internal("ui/score/tampinha-amarela.png")), 840f, 420f, 240f, 240f);
+        opponentCap = addImage(load(Gdx.files.internal("ui/score/tampinha-verde.png")), 840f, 420f, 240f, 240f);
         humanCap.setScaling(Scaling.fit);
         opponentCap.setScaling(Scaling.fit);
 
         description = label("", textFont, CREAM, 510f, 330f, 900f, 100f);
         description.setWrap(true);
         addActor(description);
+
+        this.rewardLabel = label("+1 TAMPINHA", displayFont, CREAM, 1036f, 96f, 330f, 80f);
+        rewardLabel.setFontScale(0.5f);
+        rewardLabel.setAlignment(Align.left);
+        rewardLabel.setVisible(false);
+        addActor(rewardLabel);
+    }
+
+    private Texture createCapGlow() {
+        int size = 128;
+        Pixmap pixmap = new Pixmap(size, size, Pixmap.Format.RGBA8888);
+        try {
+            pixmap.setBlending(Pixmap.Blending.None);
+            float center = (size - 1) / 2f;
+
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    float distance = (float) Math.hypot(x - center, y - center) / center;
+                    float falloff = Math.max(0f, 1f - distance);
+                    float rim = Math.max(0f, Math.min(1f, (distance - 0.44f) / 0.14f));
+                    float alpha = 0.85f * rim * falloff * falloff;
+                    pixmap.drawPixel(x, y, Color.rgba8888(1f, 0.77f, 0.30f, alpha));
+                }
+            }
+
+            return own(new Texture(pixmap));
+        } finally {
+            pixmap.dispose();
+        }
     }
 
     public void showCounts(boolean tie, boolean humanWon, int human, int opponent) {
@@ -80,12 +112,43 @@ public final class RoundResultView extends Group implements Disposable {
         reveal();
     }
 
+    public void showWinningPlay() {
+        resetContent();
+
+        if (humanTitle != null) {
+            humanTitle.setBounds(708f, 920f, 504f, 154f);
+        }
+        fallbackTitle.setY(872f);
+        showTitle(humanTitle, "RODADA SUA!");
+
+        description.setVisible(false);
+        reveal();
+    }
+
+    public void showWinningCap() {
+        float centerX = getWidth() / 2f;
+        float capSize = 120f;
+        float gap = 16f;
+        float textWidth = rewardLabel.getPrefWidth();
+        float totalWidth = capSize + gap + textWidth;
+        float capX = centerX - totalWidth / 2f;
+
+        humanCap.setBounds(capX, 76f, capSize, capSize);
+        capGlow.setBounds(capX + (capSize - 220f) / 2f, 26f, 220f, 220f);
+        rewardLabel.setBounds(capX + capSize + gap, 96f, textWidth, 80f);
+
+        capGlow.setVisible(true);
+        humanCap.setVisible(true);
+        rewardLabel.setVisible(true);
+    }
+
     public void showRoundWinner(boolean humanWon) {
         resetContent();
+        capGlow.setVisible(true);
         showTitle(humanWon ? humanTitle : opponentTitle,
             humanWon ? "RODADA SUA!" : "RODADA DO ADVERSÁRIO");
         (humanWon ? humanCap : opponentCap).setVisible(true);
-        description.setPosition(510f, 139f);
+        description.setPosition(510f, 295f);
         description.setText(humanWon ? "+1 TAMPINHA PARA VOCÊ" : "+1 TAMPINHA PARA O ADVERSÁRIO");
         reveal();
     }
@@ -110,6 +173,11 @@ public final class RoundResultView extends Group implements Disposable {
         opponentCard.setVisible(false);
         humanCap.setVisible(false);
         opponentCap.setVisible(false);
+        capGlow.setVisible(false);
+        fallbackTitle.setY(730f);
+        capGlow.setBounds(735f, 315f, 450f, 450f);
+        description.setVisible(true);
+        rewardLabel.setVisible(false);
     }
 
     private void showTitle(Image artwork, String fallback) {
