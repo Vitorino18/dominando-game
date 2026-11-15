@@ -12,7 +12,6 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -79,6 +78,7 @@ public class MatchScreen extends ScreenAdapter {
     private final DominoAssets dominoAssets;
     private final Group tilesLayer;
     private final Group hudLayer;
+    private final Group gameHud = new Group();
     private final Group shuffleLayer = new Group();
 
     private final CavaView cavaView;
@@ -92,10 +92,7 @@ public class MatchScreen extends ScreenAdapter {
     private final DominoTile leftEndPreview;
     private final DominoTile rightEndPreview;
     private final RoundResultView roundResultView;
-    private final TextButton nextRoundButton;
     private final BitmapFont controlsFont;
-    private final Texture buttonTexture;
-
     private final Random random = new Random();
     private final Map<Stone, DominoTile> handActors = new IdentityHashMap<>();
     private final Map<Placement, DominoTile> chainActors = new IdentityHashMap<>();
@@ -218,15 +215,20 @@ public class MatchScreen extends ScreenAdapter {
 
         stage.addActor(hudLayer);
 
+        gameHud.setSize(WIDTH, HEIGHT);
+        gameHud.setTouchable(Touchable.childrenOnly);
+
+        hudLayer.addActor(gameHud);
+
         opponentInfoView = new PlayerInfoView(false, "Adversário", 7);
         opponentInfoView.setPosition(48f, HEIGHT - 48f - PlayerInfoView.TOTAL_HEIGHT);
 
-        hudLayer.addActor(opponentInfoView);
+        gameHud.addActor(opponentInfoView);
 
         playerInfoView = new PlayerInfoView(true, "Você", 7);
         playerInfoView.setPosition(1544f, HEIGHT - 920f - PlayerInfoView.TOTAL_HEIGHT);
 
-        hudLayer.addActor(playerInfoView);
+        gameHud.addActor(playerInfoView);
 
         matchSettings = new OpeningDialogs(new GameSettings(), () -> {}, onLeaveMatch);
         matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
@@ -243,10 +245,10 @@ public class MatchScreen extends ScreenAdapter {
                 matchSettings.open(stage);
             }
         });
-        hudLayer.addActor(settingsButton);
+
+        gameHud.addActor(settingsButton);
 
         controlsFont = createControlsFont();
-        buttonTexture = createButtonTexture();
 
         passButton = new PassButton(controlsFont);
         passButton.setPosition(134f, 48f);
@@ -257,37 +259,14 @@ public class MatchScreen extends ScreenAdapter {
                 registerPassTap();
             }
         });
-        hudLayer.addActor(passButton);
 
-        roundResultView = new RoundResultView();
+        gameHud.addActor(passButton);
+
+        roundResultView = new RoundResultView(() -> closeFinalResult(() -> Gdx.app.postRunnable(onLeaveMatch)), () -> closeFinalResult(this::startNewMatch));
         hudLayer.addActor(roundResultView);
 
         redistributionMessage = roundResultView.createRedistributionMessage();
         stage.getRoot().addActorBefore(hudLayer, redistributionMessage);
-
-        nextRoundButton = createButton("Próxima rodada");
-        nextRoundButton.setY(105f);
-        nextRoundButton.setOrigin(nextRoundButton.getWidth() / 2f, nextRoundButton.getHeight() / 2f);
-        nextRoundButton.setTransform(true);
-        nextRoundButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (round.isFinished() && !movingStone && !leavingResult) {
-                    leavingResult = true;
-                    nextRoundButton.setTouchable(Touchable.disabled);
-                    nextRoundButton.clearActions();
-                    nextRoundButton.addAction(Actions.parallel(
-                        Actions.fadeOut(0.18f, Interpolation.smooth),
-                        Actions.scaleTo(0.97f, 0.97f, 0.18f, Interpolation.smooth)
-                    ));
-                    roundResultView.clearActions();
-                    roundResultView.addAction(Actions.sequence(
-                        Actions.fadeOut(0.18f, Interpolation.smooth),
-                        Actions.run(MatchScreen.this::beginNextRound)
-                    ));
-                }
-            }
-        });
 
         cavaView.addListener(new ClickListener() {
             @Override
@@ -441,12 +420,6 @@ public class MatchScreen extends ScreenAdapter {
         tableImage.setVisible(showTop);
 
         updateShuffle();
-        boolean readyToPlay = entranceTime >= PREPARATION_END;
-        boolean showRedistribution = redistributingTie && !readyToPlay;
-
-        tilesLayer.setVisible(readyToPlay || showRedistribution);
-        hudLayer.setVisible(readyToPlay);
-        redistributionMessage.setVisible(showRedistribution);
     }
 
     private float smooth(float progress) {
@@ -493,7 +466,6 @@ public class MatchScreen extends ScreenAdapter {
         opponentScoreView.setVisible(true);
         playerInfoView.setVisible(true);
         opponentInfoView.setVisible(true);
-        nextRoundButton.setVisible(false);
         roundOpeningPreference = preferredStarter;
         round = new LocalDominoRound(random, preferredStarter);
 
@@ -508,6 +480,34 @@ public class MatchScreen extends ScreenAdapter {
         refreshTurn();
     }
 
+    private void closeFinalResult(Runnable nextAction) {
+        if (closedRoundPreview) {
+            closeClosedRoundPreview();
+            nextAction.run();
+            return;
+        }
+
+        if (!matchIsFinished() || leavingResult) {
+            return;
+        }
+
+        leavingResult = true;
+        roundResultView.setTouchable(Touchable.disabled);
+        roundResultView.clearActions();
+        roundResultView.addAction(Actions.sequence(
+            Actions.fadeOut(0.18f, Interpolation.smooth),
+            Actions.run(nextAction)
+        ));
+    }
+
+    private void startNewMatch() {
+        humanCaps = 0;
+        opponentCaps = 0;
+        playerScoreView.setDisplayedScore(0);
+        opponentScoreView.setDisplayedScore(0);
+        startRound(null);
+    }
+
     private void beginNextRound() {
         Player nextStarter = round.winner() != null ? round.winner() : roundOpeningPreference;
 
@@ -517,11 +517,8 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         if (matchIsFinished()) {
-            humanCaps = 0;
-            opponentCaps = 0;
-            nextStarter = null;
-            playerScoreView.setDisplayedScore(0);
-            opponentScoreView.setDisplayedScore(0);
+            startNewMatch();
+            return;
         }
         startRound(nextStarter);
     }
@@ -853,38 +850,32 @@ public class MatchScreen extends ScreenAdapter {
             opponentCaps++;
         }
 
-        boolean showWinningBoard = winner != null && !round.isBlocked() && !matchIsFinished();
-        boolean showClosedBoard = round.isBlocked() && !matchIsFinished();
+        boolean matchFinished = matchIsFinished();
+        boolean showWinningBoard = winner != null && !round.isBlocked() && !matchFinished;
+        boolean showClosedBoard = round.isBlocked() && !matchFinished;
 
-        if (!showWinningBoard && !showClosedBoard) {
-            for (DominoTile tile : chainActors.values()) {
-                tile.setVisible(false);
-            }
+        if (!showWinningBoard) {
+            playerScoreView.setDisplayedScore(humanCaps);
+            opponentScoreView.setDisplayedScore(opponentCaps);
         }
+
         roundScored = true;
 
         for (DominoTile tile : handActors.values()) {
             tile.setVisible(false);
         }
-        if (!showWinningBoard) {
+        if (!showWinningBoard && !showClosedBoard) {
             for (DominoTile tile : chainActors.values()) {
                 tile.setVisible(false);
             }
         }
+
         cavaView.setVisible(false);
         playerInfoView.setVisible(false);
         opponentInfoView.setVisible(false);
 
-        boolean matchFinished = matchIsFinished();
-        nextRoundButton.setVisible(matchFinished);
-
         if (matchFinished) {
             roundResultView.showMatchWinner(winner == Player.HUMAN, humanCaps, opponentCaps);
-            nextRoundButton.clearActions();
-            nextRoundButton.getColor().a = 1f;
-            nextRoundButton.setScale(1f);
-            nextRoundButton.setText("Nova partida");
-            nextRoundButton.setTouchable(Touchable.enabled);
             return;
         }
 
@@ -1344,41 +1335,6 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
-    private Texture createButtonTexture() {
-        Pixmap pixmap = new Pixmap(600, 116, Pixmap.Format.RGBA8888);
-        try {
-            pixmap.setBlending(Pixmap.Blending.None);
-            drawButtonBody(pixmap, 0, Color.valueOf("3F241266"));
-            drawButtonBody(pixmap, 3, Color.valueOf("F0DCB2"));
-            Texture texture = new Texture(pixmap);
-            texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            return texture;
-        } finally {
-            pixmap.dispose();
-        }
-    }
-
-    private void drawButtonBody(Pixmap pixmap, int inset, Color color) {
-        int radius = 57 - inset;
-        pixmap.setColor(color);
-        pixmap.fillCircle(57, 57, radius);
-        pixmap.fillCircle(542, 57, radius);
-        pixmap.fillRectangle(57, inset, 486, 116 - 2 * inset);
-    }
-
-    private TextButton createButton(String text) {
-        TextureRegionDrawable up = new TextureRegionDrawable(new TextureRegion(buttonTexture));
-        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(
-            up, up.tint(Color.valueOf("F3D8A2")), null, controlsFont
-        );
-        style.fontColor = Color.valueOf("3F2412");
-        TextButton button = new TextButton(text, style);
-        button.setBounds((WIDTH - 300f) / 2f, 272f, 300f, 58f);
-        button.setVisible(false);
-        hudLayer.addActor(button);
-        return button;
-    }
-
     @Override
     public void show() {
         updateEntrance();
@@ -1402,7 +1358,8 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void toggleClosedRoundPreview() {
-        if (!Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+        boolean finalPreview = Gdx.input.isKeyJustPressed(Input.Keys.F11);
+        if (!finalPreview && !Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
             return;
         }
 
@@ -1422,7 +1379,17 @@ public class MatchScreen extends ScreenAdapter {
 
         closedRoundPreview = true;
         stage.cancelTouchFocus();
+        if (finalPreview) {
+            roundResultView.showMatchWinner(!opponentWins, opponentWins ? 3 : 5, opponentWins ? 5 : 3);
+            Gdx.input.setInputProcessor(stage);
+            return;
+        }
+
         Gdx.input.setInputProcessor(null);
+        if (finalPreview) {
+            roundResultView.showMatchWinner(!opponentWins, opponentWins ? 3 : 5, opponentWins ? 5 : 3);
+            return;
+        }
         boolean tiePreview = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
 
@@ -1479,6 +1446,14 @@ public class MatchScreen extends ScreenAdapter {
                 stage.act(dt);
             }
         }
+        boolean readyToPlay = entranceTime >= PREPARATION_END;
+        boolean showRedistribution = redistributingTie && !readyToPlay;
+        boolean showFinalReceipt = roundResultView.isFinalReceiptVisible();
+
+        tilesLayer.setVisible(!showFinalReceipt && (readyToPlay || showRedistribution));
+        hudLayer.setVisible(readyToPlay);
+        gameHud.setVisible(!showFinalReceipt);
+        redistributionMessage.setVisible(showRedistribution);
 
         stage.draw();
     }
@@ -1508,7 +1483,6 @@ public class MatchScreen extends ScreenAdapter {
         stage.dispose();
         roundResultView.dispose();
         controlsFont.dispose();
-        buttonTexture.dispose();
         passButton.dispose();
         playerInfoView.dispose();
         opponentInfoView.dispose();

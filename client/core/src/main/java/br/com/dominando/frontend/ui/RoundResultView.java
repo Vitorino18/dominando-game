@@ -16,6 +16,11 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.Scaling;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,8 +46,6 @@ public final class RoundResultView extends Group implements Disposable {
     private final Label fallbackTitle;
     private final Label description;
     private final Label rewardLabel;
-    private final CountCard humanCard;
-    private final CountCard opponentCard;
     private final Image humanCap;
     private final Image opponentCap;
     private final RoundCountReceipt roundCountReceipt;
@@ -51,8 +54,9 @@ public final class RoundResultView extends Group implements Disposable {
     private final Image frontCoin;
     private final Label coinRewardLabel;
     private final Image closedRoundDimmer;
+    private final FinalReceipt finalReceipt;
 
-    public RoundResultView() {
+    public RoundResultView(Runnable onReturnToStart, Runnable onPlayAgain) {
         setSize(1920f, 1080f);
         setTouchable(Touchable.disabled);
         setVisible(false);
@@ -69,10 +73,6 @@ public final class RoundResultView extends Group implements Disposable {
 
         fallbackTitle = label("", titleFont, CREAM, 480f, 730f, 960f, 240f);
         addActor(fallbackTitle);
-        humanCard = new CountCard("VOCÊ", 600f);
-        opponentCard = new CountCard("ADVERSÁRIO", 1000f);
-        addActor(humanCard);
-        addActor(opponentCard);
 
         capGlow = addImage(createCapGlow(), 735f, 315f, 450f, 450f);
         humanCap = addImage(load(Gdx.files.internal("ui/score/tampinha-amarela.png")), 840f, 420f, 240f, 240f);
@@ -101,6 +101,9 @@ public final class RoundResultView extends Group implements Disposable {
         coinRewardLabel.setFontScale(0.5f);
         coinRewardLabel.setAlignment(Align.left);
         addActor(coinRewardLabel);
+
+        finalReceipt = new FinalReceipt(onReturnToStart, onPlayAgain);
+        addActor(finalReceipt);
     }
 
     private Texture createCapGlow() {
@@ -243,12 +246,15 @@ public final class RoundResultView extends Group implements Disposable {
 
     public void showMatchWinner(boolean humanWon, int human, int opponent) {
         resetContent();
-        showTitle(null, humanWon ? "A PARTIDA É SUA!" : "O ADVERSÁRIO VENCEU!");
-        humanCard.show(human, "TAMPINHAS", humanWon);
-        opponentCard.show(opponent, "TAMPINHAS", !humanWon);
-        description.setPosition(510f, 327f);
-        description.setText(humanWon ? "Você conquistou 5 tampinhas." : "O adversário conquistou 5 tampinhas.");
+        closedRoundDimmer.setVisible(true);
+        description.setVisible(false);
+        finalReceipt.show(humanWon, human, opponent);
+        setTouchable(Touchable.enabled);
         reveal();
+    }
+
+    public boolean isFinalReceiptVisible() {
+        return isVisible() && finalReceipt.isVisible();
     }
 
     private void resetContent() {
@@ -257,8 +263,6 @@ public final class RoundResultView extends Group implements Disposable {
         if (humanTitle != null) humanTitle.setVisible(false);
         if (opponentTitle != null) opponentTitle.setVisible(false);
         fallbackTitle.setVisible(false);
-        humanCard.setVisible(false);
-        opponentCard.setVisible(false);
         humanCap.setVisible(false);
         opponentCap.setVisible(false);
         capGlow.setVisible(false);
@@ -273,6 +277,8 @@ public final class RoundResultView extends Group implements Disposable {
         coinRewardLabel.setVisible(false);
         roundCountReceipt.setVisible(false);
         closedRoundDimmer.setVisible(false);
+        finalReceipt.setVisible(false);
+        setTouchable(Touchable.disabled);
     }
 
     private void showTitle(Image artwork, String fallback) {
@@ -291,6 +297,96 @@ public final class RoundResultView extends Group implements Disposable {
             setVisible(true);
             addAction(Actions.fadeIn(0.28f, Interpolation.smooth));
         }
+    }
+
+    private final class FinalReceipt extends Group {
+        private final Label headline;
+        private final Label detail;
+        private final Label humanScore;
+        private final Label opponentScore;
+
+        FinalReceipt(Runnable onReturnToStart, Runnable onPlayAgain) {
+            setBounds(610f, 120f, 700f, 840f);
+            setTouchable(Touchable.childrenOnly);
+            setVisible(false);
+
+            Image paper = new Image(load(Gdx.files.internal("ui/result/comanda-final.png")));
+            paper.setSize(700f, 840f);
+            addActor(paper);
+
+            Image logo = new Image(load(Gdx.files.internal("ui/result/marca-comanda-final.png")));
+            logo.setBounds(270f, 680f, 160f, 112f);
+            logo.setScaling(Scaling.fit);
+            addActor(logo);
+
+            addActor(label("COMANDA FINAL", textFont, GREEN, 150f, 632f, 400f, 28f));
+
+            headline = label("", displayFont, BROWN, 110f, 548f, 480f, 56f);
+            headline.setFontScale(0.5f);
+            addActor(headline);
+
+            detail = label("", textFont, GREEN, 110f, 508f, 480f, 32f);
+            addActor(detail);
+
+            addActor(label("VOCÊ", textFont, GREEN, 130f, 456f, 180f, 28f));
+            addActor(label("ADVERSÁRIO", textFont, GREEN, 390f, 456f, 180f, 28f));
+
+            humanScore = label("", displayFont, GREEN, 130f, 376f, 180f, 72f);
+            opponentScore = label("", displayFont, GREEN, 390f, 376f, 180f, 72f);
+            humanScore.setFontScale(0.8f);
+            opponentScore.setFontScale(0.8f);
+            addActor(humanScore);
+            addActor(opponentScore);
+
+            addActor(createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart));
+            addActor(createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, onPlayAgain));
+
+            addActor(label("A saideira pode esperar", captionFont, BROWN, 150f, 64f, 400f, 32f));
+        }
+
+        void show(boolean humanWon, int human, int opponent) {
+            headline.setText(humanWon ? "A PARTIDA É SUA!" : "O ADVERSÁRIO VENCEU!");
+            detail.setText(humanWon
+                ? "Você conquistou " + human + " tampinhas."
+                : "O adversário conquistou " + opponent + " tampinhas.");
+            humanScore.setText(Integer.toString(human));
+            opponentScore.setText(Integer.toString(opponent));
+            setVisible(true);
+        }
+    }
+
+    private TextButton createFinalButton(
+        String text, float y, Color fill, Color ink, Runnable onClick
+    ) {
+        Pixmap pixmap = new Pixmap(440, 96, Pixmap.Format.RGBA8888);
+        Texture texture;
+        try {
+            rounded(pixmap, BROWN, 0, 8, 440, 88, 18);
+            rounded(pixmap, BROWN, 0, 0, 440, 88, 18);
+            rounded(pixmap, fill, 5, 5, 430, 78, 13);
+            texture = own(new Texture(pixmap));
+        } finally {
+            pixmap.dispose();
+        }
+
+        TextureRegionDrawable up = new TextureRegionDrawable(new TextureRegion(texture));
+        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(
+            up, up.tint(Color.valueOf("EAD8BB")), null, displayFont
+        );
+        style.fontColor = ink;
+        style.pressedOffsetY = -2f;
+
+        TextButton button = new TextButton(text, style);
+        button.getLabel().setFontScale(0.45f);
+        button.padBottom(8f);
+        button.setBounds(130f, y, 440f, 96f);
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                onClick.run();
+            }
+        });
+        return button;
     }
 
     private final class RoundCountReceipt extends Group {
@@ -313,7 +409,6 @@ public final class RoundResultView extends Group implements Disposable {
             opponentPoints = label("", displayFont, GREEN, 400f, 76f, 250f, 96f);
             addActor(humanPoints);
             addActor(opponentPoints);
-
             addActor(label("PONTOS", captionFont, BROWN, 250f, 36f, 200f, 36f));
 
             winnerCap = new Image();
@@ -355,33 +450,6 @@ public final class RoundResultView extends Group implements Disposable {
                     Actions.fadeIn(0.22f, Interpolation.smooth)
                 )
             ));
-        }
-    }
-
-    private final class CountCard extends Group {
-        private final Image frame;
-        private final Label value;
-        private final Label unit;
-
-        CountCard(String title, float x) {
-            setBounds(x, 480f, 320f, 220f);
-            frame = new Image(card);
-            frame.setBounds(0f, -6f, 320f, 226f);
-            addActor(frame);
-            addActor(label(title, captionFont, GREEN, 0f, 166f, 320f, 40f));
-            value = label("", displayFont, GREEN, 0f, 62f, 320f, 96f);
-            unit = label("", captionFont, GREEN, 0f, 23f, 320f, 34f);
-            addActor(value);
-            addActor(unit);
-        }
-
-        void show(int points, String units, boolean winner) {
-            frame.setDrawable(new com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable(
-                new com.badlogic.gdx.graphics.g2d.TextureRegion(winner ? highlightedCard : card)
-            ));
-            value.setText(Integer.toString(points));
-            unit.setText(units);
-            setVisible(true);
         }
     }
 
