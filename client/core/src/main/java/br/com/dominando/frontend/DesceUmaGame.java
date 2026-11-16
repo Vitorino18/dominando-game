@@ -58,7 +58,7 @@ public class DesceUmaGame extends Game {
        }
 
        if (matchIntroScreen == null) {
-           matchIntroScreen = new MatchIntroScreen(() -> Gdx.app.postRunnable(this::showMatchDemo));
+           matchIntroScreen = new MatchIntroScreen(gameSettings, () -> Gdx.app.postRunnable(this::showMatchDemo));
        }
        setScreen(matchIntroScreen);
     }

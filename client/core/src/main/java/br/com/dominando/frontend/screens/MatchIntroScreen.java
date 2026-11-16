@@ -22,6 +22,9 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.audio.Sound;
+
+import br.com.dominando.frontend.settings.GameSettings;
 
 public class MatchIntroScreen extends ScreenAdapter {
 
@@ -46,8 +49,17 @@ public class MatchIntroScreen extends ScreenAdapter {
     private float elapsed;
     private boolean finished;
 
-    public MatchIntroScreen(Runnable onFinished) {
+    private static final float HANDS_START = 2f;
+    private static final float HANDS_APPROACH_DURATION = 0.7f;
+    private static final float TOAST_TIME = HANDS_START + HANDS_APPROACH_DURATION - 0.10f;
+
+    private final GameSettings gameSettings;
+    private final Sound toastSound;
+
+    public MatchIntroScreen(GameSettings gameSettings, Runnable onFinished) {
+        this.gameSettings = gameSettings;
         this.onFinished = onFinished;
+        toastSound = Gdx.audio.newSound(Gdx.files.internal("audio/brinde.wav"));
 
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
@@ -127,11 +139,11 @@ public class MatchIntroScreen extends ScreenAdapter {
         subtitle.getColor().a = 1f - entrance;
         dimmer.getColor().a = entrance;
 
-        boolean showHands = elapsed >= 2f;
+        boolean showHands = elapsed >= HANDS_START;
         leftHand.setVisible(showHands);
         rightHand.setVisible(showHands);
 
-        float approach = progress(elapsed, 2f, 0.7f);
+        float approach = progress(elapsed, HANDS_START, HANDS_APPROACH_DURATION);
 
         float handWidth = MathUtils.lerp(900f, 1099.5f, approach);
         float handHeight = MathUtils.lerp(600f, 733f, approach);
@@ -229,6 +241,7 @@ public class MatchIntroScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         float animationDelta = Math.min(delta, 1f / 30f);
+        float previousElapsed = elapsed;
         elapsed += animationDelta;
 
         updateVisuals();
@@ -237,6 +250,11 @@ public class MatchIntroScreen extends ScreenAdapter {
         stage.getViewport().apply();
         stage.act(animationDelta);
         stage.draw();
+
+        if (previousElapsed < TOAST_TIME && elapsed >= TOAST_TIME
+            && gameSettings.isSoundEffectsEnabled()) {
+            toastSound.play(0.65f);
+        }
 
         if (!finished && elapsed >= 3.55f) {
             finished = true;
@@ -259,10 +277,12 @@ public class MatchIntroScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
+        toastSound.dispose();
         stage.dispose();
 
         titleFont.dispose();
         textFont.dispose();
+
 
         for (Texture texture : textures) {
             texture.dispose();
