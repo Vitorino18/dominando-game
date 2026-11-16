@@ -41,7 +41,6 @@ public class MatchIntroScreen extends ScreenAdapter {
     private final Image leftHand;
     private final Image rightHand;
     private final Image finalFade;
-
     private final Runnable onFinished;
 
     private float elapsed;
@@ -141,6 +140,10 @@ public class MatchIntroScreen extends ScreenAdapter {
         place(rightHand, MathUtils.lerp(1120f, 918.5f, approach), MathUtils.lerp(300f, 280f, approach), handWidth, handHeight);
 
         finalFade.getColor().a = progress(elapsed, 3.15f, 0.4f);
+    }
+
+    public float getEntranceFade() {
+        return dimmer.getColor().a;
     }
 
     private float progress(float time, float start, float duration) {

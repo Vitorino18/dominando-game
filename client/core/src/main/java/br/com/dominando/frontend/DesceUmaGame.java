@@ -2,6 +2,9 @@ package br.com.dominando.frontend;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
+import br.com.dominando.frontend.settings.GameSettings;
 
 import br.com.dominando.frontend.screens.OpeningScreen;
 import br.com.dominando.frontend.screens.PairingScreen;
@@ -16,9 +19,17 @@ public class DesceUmaGame extends Game {
     private WaitingScreen waitingScreen;
     private MatchIntroScreen matchIntroScreen;
     private MatchScreen matchScreen;
+    private static final float MENU_MUSIC_VOLUME = 0.25f;
+
+    private GameSettings gameSettings;
+    private Music menuMusic;
+    private boolean menuMusicStarted;
 
     @Override
     public void create() {
+        gameSettings = new GameSettings();
+        menuMusic = Gdx.audio.newMusic(Gdx.files.internal("audio/samba-menu-loop.ogg"));
+        menuMusic.setLooping(true);
         openingScreen = new OpeningScreen(() -> Gdx.app.postRunnable(this::showPairing));
         setScreen(openingScreen);
     }
@@ -67,8 +78,50 @@ public class DesceUmaGame extends Game {
     }
 
     @Override
+    public void render() {
+        super.render();
+        updateMenuMusic();
+    }
+
+    private void updateMenuMusic() {
+        Screen currentScreen = getScreen();
+        float level = 0f;
+
+        if (currentScreen == openingScreen
+            || currentScreen == pairingScreen
+            || currentScreen == waitingScreen) {
+            level = 1f;
+        } else if (currentScreen instanceof MatchIntroScreen) {
+            MatchIntroScreen intro = (MatchIntroScreen) currentScreen;
+            level = 1f - intro.getEntranceFade();
+        }
+
+        if (level <= 0f) {
+            if (menuMusicStarted) {
+                menuMusic.stop();
+                menuMusicStarted = false;
+            }
+            return;
+        }
+
+        if (!gameSettings.isMusicEnabled()) {
+            if (menuMusic.isPlaying()) {
+                menuMusic.pause();
+            }
+            return;
+        }
+
+        menuMusic.setVolume(MENU_MUSIC_VOLUME * level);
+        if (!menuMusic.isPlaying()) {
+            menuMusic.play();
+            menuMusicStarted = true;
+        }
+    }
+
+    @Override
     public void dispose() {
         setScreen(null);
+        menuMusic.dispose();
 
         if (matchIntroScreen != null) {
             matchIntroScreen.dispose();
