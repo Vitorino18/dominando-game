@@ -42,6 +42,7 @@ import br.com.dominando.frontend.ui.ScoreView;
 import br.com.dominando.frontend.ui.PlayerInfoView;
 import br.com.dominando.frontend.ui.RoundResultView;
 import br.com.dominando.frontend.ui.RoundResultView.MatchEndReason;
+import br.com.dominando.frontend.ui.IntervalView;
 
 
 import java.util.ArrayList;
@@ -93,6 +94,11 @@ public class MatchScreen extends ScreenAdapter {
     private final DominoTile leftEndPreview;
     private final DominoTile rightEndPreview;
     private final RoundResultView roundResultView;
+    private final IntervalView intervalView;
+    private final Texture intervalFadeTexture;
+    private final Image intervalFade;
+    private Runnable afterInterval;
+    private int humanCoins;
     private final BitmapFont controlsFont;
     private final Random random = new Random();
     private final Map<Stone, DominoTile> handActors = new IdentityHashMap<>();
@@ -269,6 +275,22 @@ public class MatchScreen extends ScreenAdapter {
         );
         hudLayer.addActor(roundResultView);
 
+        intervalView = new IntervalView();
+        hudLayer.addActor(intervalView);
+
+        Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        try {
+            pixel.setColor(Color.BLACK);
+            pixel.fill();
+            intervalFadeTexture = new Texture(pixel);
+        } finally {
+            pixel.dispose();
+        }
+
+        intervalFade = new Image(intervalFadeTexture);
+        intervalFade.setSize(WIDTH, HEIGHT);
+        intervalFade.setTouchable(Touchable.enabled);
+
         redistributionMessage = roundResultView.createRedistributionMessage();
         stage.getRoot().addActorBefore(hudLayer, redistributionMessage);
 
@@ -282,6 +304,30 @@ public class MatchScreen extends ScreenAdapter {
         });
 
         startRound(null);
+    }
+
+    private void fadeInterval(Runnable atBlack) {
+        stage.cancelTouchFocus();
+        intervalFade.clearActions();
+        intervalFade.getColor().a = 0f;
+        stage.addActor(intervalFade);
+
+        intervalFade.addAction(Actions.sequence(
+            Actions.fadeIn(0.45f, Interpolation.smooth),
+            Actions.run(atBlack),
+            Actions.fadeOut(0.45f, Interpolation.smooth),
+            Actions.removeActor()
+        ));
+    }
+
+    private void openInterval(
+        int balance, IntervalView.Snack alreadyBought, Runnable onFinished
+    ) {
+        afterInterval = onFinished;
+        fadeInterval(() -> {
+            roundResultView.setVisible(false);
+            intervalView.open(balance, alreadyBought);
+        });
     }
 
     private void createShuffleTiles() {
@@ -522,9 +568,27 @@ public class MatchScreen extends ScreenAdapter {
     private void startNewMatch() {
         humanCaps = 0;
         opponentCaps = 0;
+        humanCoins = 0;
         playerScoreView.setDisplayedScore(0);
         opponentScoreView.setDisplayedScore(0);
         startRound(null);
+    }
+
+    private boolean intervalIsDue() {
+        int decidedRounds = humanCaps + opponentCaps;
+        return round.winner() != null
+            && !matchIsFinished()
+            && decidedRounds > 0
+            && decidedRounds % 2 == 0;
+    }
+
+    private void finishRoundAfter(SequenceAction result) {
+        if (!intervalIsDue()) {
+            result.addAction(Actions.fadeOut(0.25f, Interpolation.smooth));
+        }
+
+        result.addAction(Actions.run(this::beginNextRound));
+        roundResultView.addAction(result);
     }
 
     private void beginNextRound() {
@@ -539,6 +603,11 @@ public class MatchScreen extends ScreenAdapter {
             startNewMatch();
             return;
         }
+        if (intervalIsDue()) {
+            openInterval(humanCoins, null, () -> startTieRedistribution(nextStarter));
+            return;
+        }
+
         startRound(nextStarter);
     }
 
@@ -918,24 +987,21 @@ public class MatchScreen extends ScreenAdapter {
             );
 
             if (humanWon) {
-                result.addAction(Actions.run(roundResultView::showWinningCoins));
+                result.addAction(Actions.run(() -> {
+                    humanCoins += 2;
+                    roundResultView.showWinningCoins();
+                }));
                 result.addAction(Actions.delay(2f));
             }
 
-            result.addAction(Actions.fadeOut(0.25f, Interpolation.smooth));
-            result.addAction(Actions.run(this::beginNextRound));
-            roundResultView.addAction(result);
+            finishRoundAfter(result);
             return;
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);
         }
 
         float delay = round.isBlocked() ? 4.5f : 3.5f;
-        roundResultView.addAction(Actions.sequence(
-            Actions.delay(delay),
-            Actions.fadeOut(0.25f, Interpolation.smooth),
-            Actions.run(this::beginNextRound)
-        ));
+        finishRoundAfter(Actions.sequence(Actions.delay(delay)));
     }
 
     private boolean matchIsFinished() {
@@ -1454,6 +1520,52 @@ public class MatchScreen extends ScreenAdapter {
         roundResultView.setVisible(false);
     }
 
+    private boolean updateInterval(float delta) {
+        if (intervalFade.getParent() != null) {
+            intervalFade.act(delta);
+            return true;
+        }
+
+        if (intervalView.isVisible()) {
+            boolean closePreview = afterInterval == null
+                && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE);
+
+            intervalView.act(delta);
+
+            if (closePreview || intervalView.isTimeUp()) {
+                fadeInterval(() -> {
+                    intervalView.setVisible(false);
+
+                    Runnable resume = afterInterval;
+                    afterInterval = null;
+                    if (resume != null) {
+                        resume.run();
+                    }
+                });
+            }
+            return true;
+        }
+
+        if (!Gdx.input.isKeyJustPressed(Input.Keys.F5)
+            || !entranceFinished || movingStone || round.isFinished()
+            || closedRoundPreview || roundResultView.isVisible()
+            || stage.getActors().peek() != hudLayer) {
+            return false;
+        }
+
+        boolean fullBalance = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+        boolean alreadyBought = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
+
+        openInterval(
+            fullBalance || alreadyBought ? 4 : 2,
+            alreadyBought ? IntervalView.Snack.OVO : null,
+            null
+        );
+        return true;
+    }
+
     @Override
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
@@ -1477,21 +1589,26 @@ public class MatchScreen extends ScreenAdapter {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
 
         stage.getViewport().apply();
-        toggleClosedRoundPreview();
+        if (!updateInterval(delta)) {
+            toggleClosedRoundPreview();
 
-        if (closedRoundPreview) {
-            roundResultView.act(dt);
-        } else {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.F10)
-                && entranceFinished && !movingStone && !round.isFinished()
-                && !roundResultView.isVisible() && stage.getActors().peek() == hudLayer) {
-                startTieRedistribution(roundOpeningPreference);
-            }
-            simulateReconnection();
-            if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
-                stage.act(dt);
+            if (closedRoundPreview) {
+                roundResultView.act(dt);
+            } else {
+                if (Gdx.input.isKeyJustPressed(Input.Keys.F10)
+                    && entranceFinished && !movingStone && !round.isFinished()
+                    && !roundResultView.isVisible() && stage.getActors().peek() == hudLayer) {
+                    startTieRedistribution(roundOpeningPreference);
+                }
+
+                simulateReconnection();
+
+                if (!matchSettings.isExitConfirmationOpen() && !matchSettings.isReconnectionOpen()) {
+                    stage.act(dt);
+                }
             }
         }
+
         boolean readyToPlay = entranceTime >= PREPARATION_END;
         boolean showRedistribution = redistributingTie && !readyToPlay;
         boolean showFinalReceipt = roundResultView.isFinalReceiptVisible();
@@ -1519,6 +1636,10 @@ public class MatchScreen extends ScreenAdapter {
             Gdx.input.setInputProcessor(null);
         }
         passButton.setAvailable(false);
+        intervalView.setVisible(false);
+        afterInterval = null;
+        intervalFade.clearActions();
+        intervalFade.remove();
         matchSettings.close();
     }
 
@@ -1528,6 +1649,7 @@ public class MatchScreen extends ScreenAdapter {
 
         stage.dispose();
         roundResultView.dispose();
+        intervalView.dispose();
         controlsFont.dispose();
         passButton.dispose();
         playerInfoView.dispose();
