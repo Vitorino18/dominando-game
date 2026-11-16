@@ -1,0 +1,206 @@
+package br.com.dominando.server;
+
+import br.com.dominando.grpc.*;
+import br.com.dominando.model.*;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
+
+public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImplBase{
+    private final SalaService salaService;
+
+    public DesceUmaGrpcService(SalaService salaService) {
+        this.salaService = salaService;
+    }
+
+    @Override
+    public void criarSala(CriarSalaRequest request, StreamObserver<CriarSalaResponse> responseObserver) {
+
+        try {
+            Sala sala = salaService.criarSala(request.getNomeCriador());
+
+            CriarSalaResponse response = CriarSalaResponse.newBuilder().setCodigoSala(sala.getCodigo()).
+                    setTokenJogador(sala.getCriador().getToken()).build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void entrarSala(EntrarSalaRequest request, StreamObserver<EntrarSalaResponse> responseObserver) {
+
+        try {
+            ParticipanteSala participante = salaService.entrarNaSala(request.getCodigoSala(), request.getNomeJogador());
+
+            EntrarSalaResponse response = EntrarSalaResponse.newBuilder().setCodigoSala(request.getCodigoSala().trim().toUpperCase()).
+                    setTokenJogador(participante.getToken()).build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void consultarSala(ConsultarSalaRequest request, StreamObserver<ConsultarSalaResponse> responseObserver) {
+
+        try {
+            Sala sala = salaService.buscarSala(request.getCodigoSala());
+
+            if (sala == null) {
+                throw new IllegalArgumentException("Sala não encontrada.");
+            }
+
+            if (sala.buscarPorToken(request.getTokenJogador()) == null) {
+                throw new SecurityException("Jogador não autorizado.");
+            }
+
+            ConsultarSalaResponse response = ConsultarSalaResponse.newBuilder().setCodigoSala(sala.getCodigo())
+                    .addAllNomesJogadores(sala.getJogadores()).setIniciada(sala.isIniciada()).setPodeIniciar(sala.podeIniciar()).build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void iniciarPartida(IniciarPartidaRequest request, StreamObserver<IniciarPartidaResponse> responseObserver) {
+
+        try {
+            salaService.iniciarSala(request.getCodigoSala(), request.getTokenCriador());
+
+            IniciarPartidaResponse response = IniciarPartidaResponse.newBuilder().setIniciada(true).build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void consultarEstadoJogo(EstadoJogoRequest request, StreamObserver<EstadoJogoResponse> responseObserver) {
+
+        try {
+            Sala sala = salaService.buscarSala(request.getCodigoSala());
+            if (sala == null) {
+                throw new IllegalArgumentException("Sala não encontrada.");
+            }
+
+            EstadoJogoResponse resposta = sala.consultarEstadoJogo(request.getTokenJogador());
+
+            responseObserver.onNext(resposta);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void jogarPeca(JogarPecaRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
+
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            LadoMesa lado = switch (request.getLado()) {
+                case ESQUERDA -> LadoMesa.ESQUERDA;
+                case DIREITA -> LadoMesa.DIREITA;
+                default -> throw new IllegalArgumentException("Lado da mesa inválido.");
+            };
+
+            ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(),
+                    AcaoJogo.JOGAR_PECA, request.getIndicePeca(), lado
+            );
+
+            enviarResultado(sala, resultado, responseObserver);
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void comprarPeca(AcaoSimplesRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
+
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(),
+                    AcaoJogo.COMPRAR_PECA, null, null
+            );
+
+            enviarResultado(sala, resultado, responseObserver);
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void passarVez(AcaoSimplesRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
+
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(),
+                    AcaoJogo.PASSAR_VEZ, null, null
+            );
+
+            enviarResultado(sala, resultado, responseObserver);
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    private Sala buscarSalaObrigatoria(String codigo) {
+        Sala sala = salaService.buscarSala(codigo);
+
+        if (sala == null) {
+            throw new IllegalArgumentException("Sala não encontrada.");
+        }
+        return sala;
+    }
+
+    private void enviarResultado(Sala sala, ResultadoJogada resultado, StreamObserver<AcaoJogoResponse> responseObserver) {
+
+        AcaoJogoResponse.Builder resposta = AcaoJogoResponse.newBuilder().setResultado(resultado.name());
+
+        // Consulta o estado final da competição
+        PartidaGeral partidaGeral = sala.getPartidaGeral();
+
+        if (partidaGeral != null && partidaGeral.competicaoEncerrada()) {
+            resposta.setCompeticaoEncerrada(true);
+            resposta.setCampeao(partidaGeral.getCampeao().getNome());
+        }
+
+        responseObserver.onNext(resposta.build());
+        responseObserver.onCompleted();
+    }
+
+
+    private void responderErro(StreamObserver<?> observer, RuntimeException e) {
+        Status status;
+
+        if (e instanceof SecurityException) {
+            status = Status.PERMISSION_DENIED;
+        } else if (e instanceof IllegalArgumentException) {
+            status = Status.INVALID_ARGUMENT;
+        } else if (e instanceof IllegalStateException) {
+            status = Status.FAILED_PRECONDITION;
+        } else {
+            status = Status.INTERNAL;
+        }
+        observer.onError(status.withDescription(status == Status.INTERNAL ? "Erro interno do servidor." : e.getMessage()).asRuntimeException());
+    }
+}

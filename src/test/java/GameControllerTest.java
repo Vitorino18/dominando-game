@@ -3,7 +3,6 @@ import br.com.dominando.model.*;
 import br.com.dominando.controller.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import br.com.dominando.service.MesaService;
 
 import java.util.*;
 

@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package dominando;
+
+option java_multiple_files = true;
+option java_package = "br.com.dominando.grpc";
+option java_outer_classname = "DesceUmaProto";
+
+// Operações que os celulares poderão solicitar ao servidor //
+service DesceUmaService {
+
+  rpc CriarSala (CriarSalaRequest)
+      returns (CriarSalaResponse);
+
+  rpc EntrarSala (EntrarSalaRequest)
+      returns (EntrarSalaResponse);
+
+  rpc ConsultarSala (ConsultarSalaRequest)
+      returns (ConsultarSalaResponse);
+
+  rpc IniciarPartida (IniciarPartidaRequest)
+      returns (IniciarPartidaResponse);
+
+  rpc JogarPeca (JogarPecaRequest)
+      returns (AcaoJogoResponse);
+
+  rpc ComprarPeca (AcaoSimplesRequest)
+      returns (AcaoJogoResponse);
+
+  rpc PassarVez (AcaoSimplesRequest)
+      returns (AcaoJogoResponse);
+
+  rpc ConsultarEstadoJogo (EstadoJogoRequest)
+      returns (EstadoJogoResponse);
+}
+
+// Criar uma sala //
+message CriarSalaRequest {
+  string nome_criador = 1;
+}
+
+message CriarSalaResponse {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+}
+
+// Entrar em uma sala //
+message EntrarSalaRequest {
+  string codigo_sala = 1;
+  string nome_jogador = 2;
+}
+
+message EntrarSalaResponse {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+}
+
+// Consultar informações da sala //
+message ConsultarSalaRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+}
+
+message ConsultarSalaResponse {
+  string codigo_sala = 1;
+  repeated string nomes_jogadores = 2;
+  bool iniciada = 3;
+  bool pode_iniciar = 4;
+}
+
+// Iniciar a competição //
+message IniciarPartidaRequest {
+  string codigo_sala = 1;
+  string token_criador = 2;
+}
+
+message IniciarPartidaResponse {
+  bool iniciada = 1;
+}
+
+// acao do jogador //
+message JogarPecaRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+  int32 indice_peca = 3;
+  LadoJogada lado = 4;
+}
+
+enum LadoJogada {
+  LADO_NAO_INFORMADO = 0;
+  ESQUERDA = 1;
+  DIREITA = 2;
+}
+
+message AcaoSimplesRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+}
+
+message AcaoJogoResponse {
+  string resultado = 1;
+  bool competicao_encerrada = 2;
+  string campeao = 3;
+}
+
+message PecaMensagem {
+  int32 lado_a = 1;
+  int32 lado_b = 2;
+}
+
+message JogadorMensagem {
+  string nome = 1;
+  int32 quantidade_pecas = 2;
+  int32 pontuacao = 3;
+  int32 vitorias = 4;
+  int32 gatos = 5;
+  int32 pontos_petiscos = 6;
+}
+
+message EstadoJogoRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+}
+
+message EstadoJogoResponse {
+  repeated PecaMensagem minha_mao = 1;
+  repeated PecaMensagem pecas_mesa = 2;
+  repeated JogadorMensagem jogadores = 3;
+
+  string jogador_da_vez = 4;
+  int32 pecas_baralho = 5;
+
+  bool competicao_encerrada = 6;
+  string campeao = 7;
+}

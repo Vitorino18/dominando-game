@@ -1,4 +1,4 @@
-package br.com.dominando.controller;
+package br.com.dominando.model;
 
 public enum AcaoJogo {
     JOGAR_PECA,
