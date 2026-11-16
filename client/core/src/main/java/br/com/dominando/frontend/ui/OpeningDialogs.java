@@ -22,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 
 public class OpeningDialogs implements Disposable {
     private static final float WIDTH = 1920f;
@@ -43,6 +44,8 @@ public class OpeningDialogs implements Disposable {
     private final Group exitOverlay = new Group();
     private final Group reconnectOverlay = new Group();
     private final Group opponentReconnectOverlay = new Group();
+    private final Slider musicVolumeSlider;
+    private final Label musicVolumePercent;
 
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry) {
@@ -51,7 +54,7 @@ public class OpeningDialogs implements Disposable {
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry, Runnable onLeaveMatch) {
         this.settings = settings;
-        float extraHeight = onLeaveMatch == null ? 0f : 96f;
+        float extraHeight = 60f + (onLeaveMatch == null ? 0f : 96f);
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
@@ -94,6 +97,36 @@ public class OpeningDialogs implements Disposable {
         vibrationButton = createSwitch();
 
         addOption(content, "Música", musicButton);
+
+        Slider.SliderStyle volumeStyle = new Slider.SliderStyle();
+        volumeStyle.background = createRoundedBackground(
+            210, 12, 6, 2, Color.valueOf("D6BC90"), 0
+        );
+        volumeStyle.knob = createRoundedBackground(
+            26, 26, 13, 3, Color.valueOf("F0B639"), 0
+        );
+
+        musicVolumeSlider = new Slider(0f, 100f, 5f, false, volumeStyle);
+        musicVolumePercent = new Label("", new Label.LabelStyle(labelFont, brown));
+        musicVolumePercent.setAlignment(Align.right);
+
+        Table volumeRow = new Table();
+        volumeRow.add(new Label("Volume da música", new Label.LabelStyle(labelFont, brown)))
+            .expandX().left();
+        volumeRow.add(musicVolumeSlider).width(210f).height(48f);
+        volumeRow.add(musicVolumePercent).width(72f).padLeft(16f);
+        content.add(volumeRow).colspan(2).width(552f).height(48f).padBottom(12f);
+        content.row();
+
+        musicVolumeSlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                int volume = Math.round(musicVolumeSlider.getValue());
+                settings.setMusicVolume(volume);
+                musicVolumePercent.setText(volume + "%");
+            }
+        });
+
         addOption(content, "Efeitos Sonoros", effectsButton);
         addOption(content, "Vibração", vibrationButton);
 
@@ -254,6 +287,9 @@ public class OpeningDialogs implements Disposable {
         }
 
         musicButton.setChecked(settings.isMusicEnabled());
+        int volume = settings.getMusicVolume();
+        musicVolumeSlider.setValue(volume);
+        musicVolumePercent.setText(volume + "%");
         effectsButton.setChecked(settings.isSoundEffectsEnabled());
         vibrationButton.setChecked(settings.isVibrationEnabled());
         stage.addActor(overlay);

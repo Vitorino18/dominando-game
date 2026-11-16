@@ -2,6 +2,15 @@ package br.com.dominando.frontend.lwjgl3;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowAdapter;
+import com.badlogic.gdx.backends.lwjgl3.audio.OpenALLwjgl3Audio;
+
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.openal.AL10;
+import org.lwjgl.openal.ALC10;
+
 import br.com.dominando.frontend.DesceUmaGame;
 
 /** Launches the desktop (LWJGL3) application. */
@@ -12,7 +21,49 @@ public class Lwjgl3Launcher {
     }
 
     private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new DesceUmaGame(), getDefaultConfiguration());
+        DesceUmaGame game = new DesceUmaGame();
+        Lwjgl3ApplicationConfiguration configuration = getDefaultConfiguration();
+
+        configuration.setWindowListener(new Lwjgl3WindowAdapter() {
+            private Lwjgl3Window window;
+
+            @Override
+            public void created(Lwjgl3Window window) {
+                this.window = window;
+                window.postRunnable(this::updateAudioFocus);
+            }
+
+            @Override
+            public void focusGained() {
+                updateAudioFocus();
+            }
+
+            @Override
+            public void focusLost() {
+                updateAudioFocus();
+            }
+
+            @Override
+            public void iconified(boolean iconified) {
+                updateAudioFocus();
+            }
+
+            private void updateAudioFocus() {
+                long handle = window.getWindowHandle();
+                boolean foreground =
+                    GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE
+                        && GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) == GLFW.GLFW_FALSE;
+
+                game.setAudioInForeground(foreground);
+
+                if (Gdx.audio instanceof OpenALLwjgl3Audio
+                    && ALC10.alcGetCurrentContext() != 0L) {
+                    AL10.alListenerf(AL10.AL_GAIN, foreground ? 1f : 0f);
+                }
+            }
+        });
+
+        return new Lwjgl3Application(game, configuration);
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {

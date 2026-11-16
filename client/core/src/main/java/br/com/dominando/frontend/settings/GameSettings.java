@@ -8,10 +8,23 @@ public class GameSettings {
     private static final String MUSIC = "music";
     private static final String SOUND_EFFECTS = "sound-effects";
     private static final String VIBRATION = "vibration";
+    private static final String MUSIC_VOLUME = "music-volume";
     private final Preferences preferences;
 
     public GameSettings() {
         preferences = Gdx.app.getPreferences(FILE_NAME);
+    }
+
+    public int getMusicVolume() {
+        return preferences.getInteger(MUSIC_VOLUME, 25);
+    }
+
+    public void setMusicVolume(int percent) {
+        int volume = Math.max(0, Math.min(100, percent));
+        if (volume != getMusicVolume()) {
+            preferences.putInteger(MUSIC_VOLUME, volume);
+            preferences.flush();
+        }
     }
 
     public boolean isMusicEnabled() {

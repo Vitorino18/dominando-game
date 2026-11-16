@@ -19,7 +19,6 @@ public class DesceUmaGame extends Game {
     private WaitingScreen waitingScreen;
     private MatchIntroScreen matchIntroScreen;
     private MatchScreen matchScreen;
-    private static final float MENU_MUSIC_VOLUME = 0.25f;
 
     private GameSettings gameSettings;
     private Music menuMusic;
@@ -83,6 +82,16 @@ public class DesceUmaGame extends Game {
         updateMenuMusic();
     }
 
+    private boolean audioInForeground = true;
+
+    public void setAudioInForeground(boolean foreground) {
+        audioInForeground = foreground;
+
+        if (!foreground && menuMusic != null && menuMusic.isPlaying()) {
+            menuMusic.pause();
+        }
+    }
+
     private void updateMenuMusic() {
         Screen currentScreen = getScreen();
         float level = 0f;
@@ -104,14 +113,14 @@ public class DesceUmaGame extends Game {
             return;
         }
 
-        if (!gameSettings.isMusicEnabled()) {
+        if (!audioInForeground || !gameSettings.isMusicEnabled()) {
             if (menuMusic.isPlaying()) {
                 menuMusic.pause();
             }
             return;
         }
 
-        menuMusic.setVolume(MENU_MUSIC_VOLUME * level);
+        menuMusic.setVolume((gameSettings.getMusicVolume() / 100f) * level);
         if (!menuMusic.isPlaying()) {
             menuMusic.play();
             menuMusicStarted = true;
