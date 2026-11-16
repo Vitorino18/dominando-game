@@ -41,6 +41,7 @@ import br.com.dominando.frontend.ui.CavaView;
 import br.com.dominando.frontend.ui.ScoreView;
 import br.com.dominando.frontend.ui.PlayerInfoView;
 import br.com.dominando.frontend.ui.RoundResultView;
+import br.com.dominando.frontend.ui.RoundResultView.MatchEndReason;
 
 
 import java.util.ArrayList;
@@ -485,9 +486,10 @@ public class MatchScreen extends ScreenAdapter {
 
     private void startRematchWaiting() {
         roundResultView.showRematchWaiting();
-        roundResultView.addAction(Actions.delay(
-            5f, Actions.run(this::startAcceptedRematch)
-        ));
+
+        Runnable response = closedRoundPreview && refuseRematchInPreview ? roundResultView::showRematchDeclined : this::startAcceptedRematch;
+
+        roundResultView.addAction(Actions.delay(5f, Actions.run(response)));
     }
 
     private void startAcceptedRematch() {
@@ -1374,10 +1376,26 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
+    private MatchEndReason readMatchEndPreview() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F4)) {
+            return MatchEndReason.OPPONENT_LEFT;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
+            return MatchEndReason.OPPONENT_RECONNECT_EXPIRED;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+            return MatchEndReason.OWN_RECONNECT_EXPIRED;
+        }
+        return null;
+    }
+
     private void toggleClosedRoundPreview() {
+        MatchEndReason endReason = readMatchEndPreview();
         boolean finalPreview = Gdx.input.isKeyJustPressed(Input.Keys.F11);
         boolean invitationPreview = Gdx.input.isKeyJustPressed(Input.Keys.F12);
-        if (!finalPreview && !invitationPreview && !Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
+
+        if (endReason == null && !finalPreview && !invitationPreview
+            && !Gdx.input.isKeyJustPressed(Input.Keys.F9)) {
             return;
         }
 
@@ -1397,7 +1415,13 @@ public class MatchScreen extends ScreenAdapter {
 
         closedRoundPreview = true;
         stage.cancelTouchFocus();
+        if (endReason != null) {
+            roundResultView.showInterruptedMatch(endReason, 3, 2);
+            Gdx.input.setInputProcessor(stage);
+            return;
+        }
         if (finalPreview || invitationPreview) {
+            refuseRematchInPreview = finalPreview && !invitationPreview && (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT));
             roundResultView.showMatchWinner(!opponentWins, opponentWins ? 3 : 5, opponentWins ? 5 : 3);
 
             if (invitationPreview) {
@@ -1421,8 +1445,11 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
+    private boolean refuseRematchInPreview;
+
     private void closeClosedRoundPreview() {
         closedRoundPreview = false;
+        refuseRematchInPreview = false;
         roundResultView.clearActions();
         roundResultView.setVisible(false);
     }

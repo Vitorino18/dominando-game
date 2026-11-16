@@ -270,6 +270,10 @@ public final class RoundResultView extends Group implements Disposable {
         finalReceipt.showInvitation(onAccept);
     }
 
+    public void showRematchDeclined() {
+        finalReceipt.showDeclined();
+    }
+
     private void resetContent() {
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
@@ -324,6 +328,7 @@ public final class RoundResultView extends Group implements Disposable {
         private float waitingTime;
         private final TextButton returnToStartButton;
         private Runnable acceptRematch;
+        private final Group scores = new Group();
 
         FinalReceipt(Runnable onReturnToStart, Runnable onPlayAgain) {
             setBounds(610f, 120f, 700f, 840f);
@@ -348,15 +353,16 @@ public final class RoundResultView extends Group implements Disposable {
             detail = label("", textFont, GREEN, 110f, 508f, 480f, 32f);
             addActor(detail);
 
-            addActor(label("VOCÊ", textFont, GREEN, 130f, 456f, 180f, 28f));
-            addActor(label("ADVERSÁRIO", textFont, GREEN, 390f, 456f, 180f, 28f));
+            scores.addActor(label("VOCÊ", textFont, GREEN, 130f, 456f, 180f, 28f));
+            scores.addActor(label("ADVERSÁRIO", textFont, GREEN, 390f, 456f, 180f, 28f));
 
             humanScore = label("", displayFont, GREEN, 130f, 376f, 180f, 72f);
             opponentScore = label("", displayFont, GREEN, 390f, 376f, 180f, 72f);
             humanScore.setFontScale(0.8f);
             opponentScore.setFontScale(0.8f);
-            addActor(humanScore);
-            addActor(opponentScore);
+            scores.addActor(humanScore);
+            scores.addActor(opponentScore);
+            addActor(scores);
 
             returnToStartButton = createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart);
             addActor(returnToStartButton);
@@ -387,7 +393,11 @@ public final class RoundResultView extends Group implements Disposable {
             addActor(receiptFooter);
         }
 
+
         void show(boolean humanWon, int human, int opponent) {
+            scores.setY(0f);
+            detail.setBounds(110f, 508f, 480f, 32f);
+            receiptFooter.setVisible(true);
             acceptRematch = null;
             returnToStartButton.setText("VOLTAR AO INÍCIO");
             playAgainButton.setText("JOGAR DE NOVO");
@@ -433,6 +443,29 @@ public final class RoundResultView extends Group implements Disposable {
             loadingCaps.setVisible(true);
         }
 
+        void showDeclined() {
+            showReturnOnly("FICOU PRA PRÓXIMA!", "O adversário recusou a revanche");
+        }
+
+        void showInterrupted(MatchEndReason reason) {
+            showReturnOnly(reason.title, reason.message);
+
+            if (reason == MatchEndReason.OWN_RECONNECT_EXPIRED) {
+                detail.setBounds(110f, 496f, 480f, 56f);
+                scores.setY(-10f);
+            }
+        }
+
+        private void showReturnOnly(String title, String message) {
+            headline.setText(title);
+            detail.setText(message);
+            returnToStartButton.setText("VOLTAR AO INÍCIO");
+            returnToStartButton.setVisible(true);
+            playAgainButton.setVisible(false);
+            loadingCaps.setVisible(false);
+            receiptFooter.setVisible(false);
+        }
+
         @Override
         public void act(float delta) {
             super.act(delta);
@@ -456,6 +489,32 @@ public final class RoundResultView extends Group implements Disposable {
                     : baseAlpha;
             }
         }
+    }
+
+    public enum MatchEndReason {
+        OPPONENT_LEFT(
+            "VOCÊ VENCEU!", "O adversário saiu da mesa"
+        ),
+        OPPONENT_RECONNECT_EXPIRED(
+            "VOCÊ VENCEU!", "O adversário não voltou à mesa a tempo"
+        ),
+        OWN_RECONNECT_EXPIRED(
+            "PARTIDA ENCERRADA",
+            "Você não voltou à mesa a tempo.\nVitória do adversário."
+        );
+
+        private final String title;
+        private final String message;
+
+        MatchEndReason(String title, String message) {
+            this.title = title;
+            this.message = message;
+        }
+    }
+
+    public void showInterruptedMatch(MatchEndReason reason, int human, int opponent) {
+        showMatchWinner(reason != MatchEndReason.OWN_RECONNECT_EXPIRED, human, opponent);
+        finalReceipt.showInterrupted(reason);
     }
 
     private TextButton createFinalButton(
