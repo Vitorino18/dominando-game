@@ -43,6 +43,8 @@ import br.com.dominando.frontend.ui.PlayerInfoView;
 import br.com.dominando.frontend.ui.RoundResultView;
 import br.com.dominando.frontend.ui.RoundResultView.MatchEndReason;
 import br.com.dominando.frontend.ui.IntervalView;
+import br.com.dominando.frontend.ui.SnackActionView;
+import br.com.dominando.frontend.ui.IntervalView.Snack;
 
 
 import java.util.ArrayList;
@@ -127,6 +129,15 @@ public class MatchScreen extends ScreenAdapter {
 
     private final Group redistributionMessage;
     private boolean redistributingTie;
+
+    private final SnackActionView snackActionView;
+    private Snack nextRoundSnack;
+    private Snack roundSnack;
+    private boolean snackUsed;
+    private Player snackTurn;
+    private boolean humanDrewThisTurn;
+    private Stone revealedStone;
+    private float revealRemaining;
 
     public MatchScreen(Runnable onLeaveMatch) {
 
@@ -240,6 +251,9 @@ public class MatchScreen extends ScreenAdapter {
 
         gameHud.addActor(playerInfoView);
 
+        snackActionView = new SnackActionView(this::useEgg);
+        gameHud.addActorBefore(playerInfoView, snackActionView);
+
         matchSettings = new OpeningDialogs(new GameSettings(), () -> {}, onLeaveMatch);
         matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
         matchSettingsIcon.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -331,6 +345,7 @@ public class MatchScreen extends ScreenAdapter {
                 if (onFinished != null) {
                     humanCoins -= snack.getPrice();
                     boughtSnacks.add(snack);
+                    nextRoundSnack = snack;
                 }
             });
         });
@@ -498,6 +513,13 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void startRound(Player preferredStarter) {
+        clearEggReveal();
+        roundSnack = nextRoundSnack;
+        nextRoundSnack = null;
+        snackUsed = false;
+        snackTurn = null;
+        humanDrewThisTurn = false;
+        showRoundSnack();
         passButton.setAvailable(false);
         tilesLayer.clearActions();
         selectStone(null);
@@ -578,6 +600,7 @@ public class MatchScreen extends ScreenAdapter {
         boughtSnacks.clear();
         playerScoreView.setDisplayedScore(0);
         opponentScoreView.setDisplayedScore(0);
+        nextRoundSnack = null;
         startRound(null);
     }
 
@@ -704,6 +727,75 @@ public class MatchScreen extends ScreenAdapter {
             && round.turn() == Player.HUMAN;
     }
 
+    private boolean canUseEgg() {
+        return roundSnack == Snack.OVO && !snackUsed && !humanDrewThisTurn
+            && !closedRoundPreview && !intervalView.isVisible()
+            && stage.getActors().peek() == hudLayer
+            && canAct() && !round.hand(Player.OPPONENT).isEmpty();
+    }
+
+    private void useEgg() {
+        if (!canUseEgg()) {
+            return;
+        }
+
+        List<Stone> opponentHand = round.hand(Player.OPPONENT);
+        revealedStone = opponentHand.get(random.nextInt(opponentHand.size()));
+        DominoTile tile = handActors.get(revealedStone);
+
+        tile.setValues(revealedStone.first, revealedStone.second);
+        tile.setFaceDown(false);
+        revealRemaining = 5f;
+        snackUsed = true;
+        snackActionView.setButtonEnabled(false);
+        snackActionView.highlightTile(tile, 1f);
+    }
+
+    private void updateEggReveal(float delta) {
+        if (revealedStone == null) {
+            return;
+        }
+
+        revealRemaining -= delta;
+        DominoTile tile = handActors.get(revealedStone);
+        if (revealRemaining <= 0f || tile == null) {
+            clearEggReveal();
+            return;
+        }
+
+        snackActionView.highlightTile(tile, revealRemaining / 5f);
+    }
+
+    private void clearEggReveal() {
+        DominoTile tile = handActors.get(revealedStone);
+        if (tile != null) {
+            tile.setFaceDown(true);
+            tile.setValues(0, 0);
+        }
+
+        revealedStone = null;
+        snackActionView.hideHighlight();
+        if (roundSnack == Snack.OVO && snackUsed) {
+            snackActionView.showUsedEgg();
+        }
+    }
+
+    private void previewEgg() {
+        boolean alt = Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT);
+
+        if (!alt || !Gdx.input.isKeyJustPressed(Input.Keys.O)
+            || !canAct() || humanDrewThisTurn || closedRoundPreview
+            || stage.getActors().peek() != hudLayer) {
+            return;
+        }
+
+        clearEggReveal();
+        roundSnack = Snack.OVO;
+        snackUsed = false;
+        showRoundSnack();
+    }
+
     private void selectStone(Stone stone) {
         DominoTile previous = handActors.get(selectedStone);
         if (previous != null) {
@@ -720,6 +812,11 @@ public class MatchScreen extends ScreenAdapter {
         if (stone != null && canAct()) {
             refreshPreviews(stone);
         }
+    }
+
+    private void showRoundSnack() {
+        playerInfoView.setBackgroundVisible(roundSnack == null);
+        snackActionView.showSnack(roundSnack);
     }
 
     private void refreshPreviews(Stone stone) {
@@ -870,6 +967,9 @@ public class MatchScreen extends ScreenAdapter {
         Player player = round.turn();
         Stone stone = round.draw();
         if (stone != null) {
+            if (player == Player.HUMAN) {
+                humanDrewThisTurn = true;
+            }
             selectStone(null);
             createHandActor(stone, player);
             handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE,
@@ -907,6 +1007,12 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
+        Player currentTurn = round.turn();
+        if (currentTurn != snackTurn) {
+            snackTurn = currentTurn;
+            humanDrewThisTurn = false;
+        }
+
         playerInfoView.setDisplayedCount(round.hand(Player.HUMAN).size());
         opponentInfoView.setDisplayedCount(round.hand(Player.OPPONENT).size());
         cavaView.setDisplayedCount(round.stockCount());
@@ -940,6 +1046,8 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void showResult() {
+        clearEggReveal();
+        snackActionView.setVisible(false);
         Player winner = round.winner();
         if (winner == Player.HUMAN) {
             humanCaps++;
@@ -1610,6 +1718,7 @@ public class MatchScreen extends ScreenAdapter {
         stage.getViewport().apply();
         if (!updateInterval(delta)) {
             toggleClosedRoundPreview();
+            previewEgg();
 
             if (closedRoundPreview) {
                 roundResultView.act(dt);
@@ -1637,6 +1746,8 @@ public class MatchScreen extends ScreenAdapter {
         gameHud.setVisible(!showFinalReceipt);
         redistributionMessage.setVisible(showRedistribution);
 
+        updateEggReveal(delta);
+        snackActionView.setButtonEnabled(canUseEgg());
         stage.draw();
     }
 
@@ -1647,6 +1758,7 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        clearEggReveal();
         if (closedRoundPreview) {
             closeClosedRoundPreview();
         }
@@ -1669,6 +1781,7 @@ public class MatchScreen extends ScreenAdapter {
         stage.dispose();
         roundResultView.dispose();
         intervalView.dispose();
+        snackActionView.dispose();
         controlsFont.dispose();
         passButton.dispose();
         playerInfoView.dispose();

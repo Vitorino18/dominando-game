@@ -34,6 +34,7 @@ public class PlayerInfoView extends Group implements Disposable {
     private final BitmapFont statusFont;
 
     private final Image avatar;
+    private final Image background;
     private final Label initialLabel;
     private final Label nameLabel;
     private final Label statusLabel;
@@ -54,7 +55,7 @@ public class PlayerInfoView extends Group implements Disposable {
         nameFont = createFont(24);
         statusFont = createFont(20);
 
-        Image background = new Image(backgroundTexture);
+        background = new Image(backgroundTexture);
         background.setBounds(0f, 0f, WIDTH, TOTAL_HEIGHT);
         addActor(background);
 
@@ -87,6 +88,10 @@ public class PlayerInfoView extends Group implements Disposable {
         setActiveTurn(false);
     }
 
+    public void setBackgroundVisible(boolean visible) {
+        background.setVisible(visible);
+    }
+
     public void setPlayerName(String name) {
         String displayedName = name == null ? "" : name.trim();
 
@@ -116,6 +121,10 @@ public class PlayerInfoView extends Group implements Disposable {
         Texture selectedTexture = active ? activeAvatarTexture : normalAvatarTexture;
         avatar.setDrawable(new TextureRegionDrawable(new TextureRegion(selectedTexture)));
         refreshStatus();
+    }
+
+    public void setTurnPrompt(String prompt) {
+        statusLabel.setText(prompt);
     }
 
     private void refreshStatus() {
