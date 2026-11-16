@@ -27,6 +27,8 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.actions.SequenceAction;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
 import br.com.dominando.frontend.ui.OpeningDialogs;
@@ -59,6 +61,10 @@ public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
     private static final float HEIGHT = 1080f;
     private static final float ENTRANCE_DURATION = 4.4f;
+    private static final float BAR_AMBIENCE_DUCK_START = ENTRANCE_DURATION - 0.50f;
+    private static final float BAR_AMBIENCE_TAIL_DURATION = 1.20f;
+    private static final float BAR_AMBIENCE_END = ENTRANCE_DURATION + BAR_AMBIENCE_TAIL_DURATION;
+    private static final float BAR_AMBIENCE_SHUFFLE_LEVEL = 0.25f;
     private static final float SHUFFLE_DURATION = 2.8f;
     private static final float SHUFFLE_END = ENTRANCE_DURATION + SHUFFLE_DURATION;
     private static final float DEAL_SLIDE = 0.45f;
@@ -140,8 +146,15 @@ public class MatchScreen extends ScreenAdapter {
     private boolean humanDrewThisTurn;
     private Stone revealedStone;
     private float revealRemaining;
+    private static final float BAR_AMBIENCE_VOLUME = 0.45f;
+
+    private final GameSettings gameSettings = new GameSettings();
+    private final Music barAmbience;
+    private final Sound shuffleSound;
 
     public MatchScreen(Runnable onLeaveMatch) {
+        barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
+        shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -256,7 +269,7 @@ public class MatchScreen extends ScreenAdapter {
         snackActionView = new SnackActionView(this::useSnack);
         gameHud.addActorBefore(playerInfoView, snackActionView);
 
-        matchSettings = new OpeningDialogs(new GameSettings(), () -> {}, onLeaveMatch);
+        matchSettings = new OpeningDialogs(gameSettings, () -> {}, onLeaveMatch);
         matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
         matchSettingsIcon.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
@@ -323,6 +336,12 @@ public class MatchScreen extends ScreenAdapter {
         });
 
         startRound(null);
+    }
+
+    private void playShuffleSound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            shuffleSound.play(0.85f);
+        }
     }
 
     private void fadeInterval(Runnable atBlack) {
@@ -473,6 +492,14 @@ public class MatchScreen extends ScreenAdapter {
         float fade = fadeProgress * (3f - 2f * fadeProgress);
 
         background.getColor().a = fade;
+
+        if (entranceTime < BAR_AMBIENCE_END) {
+            float duckProgress = Math.max(0f, Math.min(1f, (entranceTime - BAR_AMBIENCE_DUCK_START) / (ENTRANCE_DURATION - BAR_AMBIENCE_DUCK_START)));
+            float tailProgress = Math.max(0f, Math.min(1f, (entranceTime - ENTRANCE_DURATION) / BAR_AMBIENCE_TAIL_DURATION));
+            float duck = 1f - (1f - BAR_AMBIENCE_SHUFFLE_LEVEL) * smooth(duckProgress);
+            float tail = 1f - smooth(tailProgress);
+            barAmbience.setVolume(BAR_AMBIENCE_VOLUME * fade * duck * tail);
+        }
 
         float moveProgress = Math.min(entranceTime / 2f, 1f);
         float movement = moveProgress * moveProgress * (3f - 2f * moveProgress);
@@ -664,6 +691,7 @@ public class MatchScreen extends ScreenAdapter {
         cavaView.setVisible(false);
 
         updateEntrance();
+        playShuffleSound();
     }
 
     private void createHandActor(Stone stone, Player player) {
@@ -1659,6 +1687,10 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void show() {
+        if (entranceTime < ENTRANCE_DURATION && gameSettings.isSoundEffectsEnabled()) {
+            barAmbience.setVolume(0f);
+            barAmbience.play();
+        }
         updateEntrance();
         passButton.setAvailable(canAct() && round.canPass());
 
@@ -1817,7 +1849,16 @@ public class MatchScreen extends ScreenAdapter {
     public void render(float delta) {
         float dt = Math.min(delta, 1f / 30f);
 
+        float previousEntranceTime = entranceTime;
         entranceTime = Math.min(entranceTime + dt, PREPARATION_END);
+        if (previousEntranceTime < ENTRANCE_DURATION && entranceTime >= ENTRANCE_DURATION) {
+            playShuffleSound();
+        }
+
+        if (previousEntranceTime < BAR_AMBIENCE_END && entranceTime >= BAR_AMBIENCE_END) {
+            barAmbience.stop();
+        }
+
         updateEntrance();
 
         if (!entranceFinished && entranceTime >= PREPARATION_END) {
@@ -1879,6 +1920,8 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        barAmbience.stop();
+        shuffleSound.stop();
         clearEggReveal();
         if (closedRoundPreview) {
             closeClosedRoundPreview();
@@ -1899,6 +1942,8 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        shuffleSound.dispose();
+        barAmbience.dispose();
         stage.dispose();
         roundResultView.dispose();
         intervalView.dispose();

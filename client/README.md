@@ -33,3 +33,5 @@ Useful Gradle tasks and flags:
 
 Note that most tasks that are not specific to a single project can be run with `name:` prefix, where the `name` should be replaced with the ID of a specific project.
 For example, `core:clean` removes `build` folder only from the `core` project.
+
+- `ambiente-bar.ogg` — Mix de [Castleguard (CC0)](https://freesound.org/people/Castleguard/sounds/660454/) e [José Viana — Banco Sonoro Amazônico, 2022 (CC BY 4.0)](https://freesound.org/people/jose.viana/sounds/660968/). Gravações recortadas, filtradas e mixadas. [Licença CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
