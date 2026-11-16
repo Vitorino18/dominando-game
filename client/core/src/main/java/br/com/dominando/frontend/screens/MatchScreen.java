@@ -50,6 +50,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.EnumSet;
+import java.util.Set;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -99,6 +101,7 @@ public class MatchScreen extends ScreenAdapter {
     private final Image intervalFade;
     private Runnable afterInterval;
     private int humanCoins;
+    private final Set<IntervalView.Snack> boughtSnacks = EnumSet.noneOf(IntervalView.Snack.class);
     private final BitmapFont controlsFont;
     private final Random random = new Random();
     private final Map<Stone, DominoTile> handActors = new IdentityHashMap<>();
@@ -320,13 +323,16 @@ public class MatchScreen extends ScreenAdapter {
         ));
     }
 
-    private void openInterval(
-        int balance, IntervalView.Snack alreadyBought, Runnable onFinished
-    ) {
+    private void openInterval(int balance, Set<IntervalView.Snack> alreadyBought,boolean boughtThisInterval, boolean refuseNextOrder, Runnable onFinished) {
         afterInterval = onFinished;
         fadeInterval(() -> {
             roundResultView.setVisible(false);
-            intervalView.open(balance, alreadyBought);
+            intervalView.open(balance, alreadyBought, boughtThisInterval, refuseNextOrder, snack -> {
+                if (onFinished != null) {
+                    humanCoins -= snack.getPrice();
+                    boughtSnacks.add(snack);
+                }
+            });
         });
     }
 
@@ -569,6 +575,7 @@ public class MatchScreen extends ScreenAdapter {
         humanCaps = 0;
         opponentCaps = 0;
         humanCoins = 0;
+        boughtSnacks.clear();
         playerScoreView.setDisplayedScore(0);
         opponentScoreView.setDisplayedScore(0);
         startRound(null);
@@ -604,9 +611,11 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
         if (intervalIsDue()) {
-            openInterval(humanCoins, null, () -> startTieRedistribution(nextStarter));
+            openInterval(humanCoins, boughtSnacks, false, false,() -> startTieRedistribution(nextStarter));
             return;
         }
+
+
 
         startRound(nextStarter);
     }
@@ -1527,12 +1536,18 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         if (intervalView.isVisible()) {
-            boolean closePreview = afterInterval == null
-                && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE);
+            boolean closePreview = afterInterval == null && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE);
+
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F6)) {
+                stage.cancelTouchFocus();
+                intervalView.setReconnecting(true);
+            } else if (Gdx.input.isKeyJustPressed(Input.Keys.F8)) {
+                intervalView.setReconnecting(false);
+            }
 
             intervalView.act(delta);
 
-            if (closePreview || intervalView.isTimeUp()) {
+            if (closePreview || (intervalView.isTimeUp() && !intervalView.isReconnecting())) {
                 fadeInterval(() -> {
                     intervalView.setVisible(false);
 
@@ -1558,11 +1573,15 @@ public class MatchScreen extends ScreenAdapter {
         boolean alreadyBought = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
 
-        openInterval(
-            fullBalance || alreadyBought ? 4 : 2,
-            alreadyBought ? IntervalView.Snack.OVO : null,
-            null
-        );
+        boolean refuseOrder = fullBalance && alreadyBought;
+        Set<IntervalView.Snack> previewHistory = EnumSet.noneOf(IntervalView.Snack.class);
+
+        if (alreadyBought && !refuseOrder) {
+            previewHistory.add(IntervalView.Snack.OVO);
+        }
+
+        int previewBalance = !refuseOrder && (fullBalance || alreadyBought) ? 4 : 2;
+        openInterval(previewBalance, previewHistory, false, refuseOrder, null);
         return true;
     }
 

@@ -11,31 +11,57 @@ import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.function.Consumer;
 
 public final class IntervalView extends Group implements Disposable {
     public enum Snack {
-        OVO(2, 645f, 732f),
-        TORRESMO(4, 1355f, 732f),
-        COXINHA(4, 990f, 932f);
+        OVO(2, 645f, 732f, "Ovo Colorido", "Olho no Jogo",
+            "No início do seu turno, antes de jogar ou cavar, revele uma peça "
+                + "aleatória do adversário por 5 segundos. Só você vê."),
+        TORRESMO(4, 1355f, 732f, "Torresmo", "Casca Grossa",
+            "Quando estiver sem jogada, ative antes de cavar. Retire apenas uma peça. "
+                + "Se ela não encaixar, seu turno termina."),
+        COXINHA(4, 990f, 932f, "Coxinha", "Troca de Recheio",
+            "No início do seu turno, antes de jogar ou cavar, escolha uma peça da sua "
+                + "mão para trocar por uma peça aleatória da cava.");
 
         private final int price;
         private final float centerX;
         private final float statusTop;
+        private final String displayName;
+        private final String effect;
+        private final String description;
 
-        Snack(int price, float centerX, float statusTop) {
+        Snack(int price, float centerX, float statusTop, String displayName, String effect, String description) {
             this.price = price;
             this.centerX = centerX;
             this.statusTop = statusTop;
+            this.displayName = displayName;
+            this.effect = effect;
+            this.description = description;
+        }
+
+        public int getPrice() {
+            return price;
         }
     }
 
     private static final Color CREAM = Color.valueOf("F0DCB2");
     private static final Color GREEN = Color.valueOf("234730");
     private static final Color BROWN = Color.valueOf("3F2412");
-
     private final List<Texture> textures = new ArrayList<>();
     private final BitmapFont font;
     private final Label balanceLabel;
@@ -45,25 +71,52 @@ public final class IntervalView extends Group implements Disposable {
     private final Label[] missingBalance = new Label[Snack.values().length];
     private final Image[] boughtBadges = new Image[Snack.values().length];
     private float remaining;
+    private enum OrderState {DETAIL, SENDING, CONFIRMED, REFUSED}
+    private final BitmapFont detailFont;
+    private final BitmapFont displayFont;
+    private final Group orderPanel = new Group();
+    private final Image dimmer;
+    private final Image reconnectDialog;
+    private final Label orderTitle;
+    private final Label orderSubtitle;
+    private final Label orderDescription;
+    private final Label orderNote;
+    private final Label orderBalance;
+    private final Label closeOrder;
+    private final TextButton orderButton;
+
+    private final Set<Snack> boughtSnacks = EnumSet.noneOf(Snack.class);
+    private Consumer<Snack> onPurchaseConfirmed;
+    private Snack selectedSnack;
+    private OrderState orderState = OrderState.DETAIL;
+    private int balance;
+    private boolean refuseNextOrder;
+    private float responseTime;
+    private boolean boughtThisInterval;
+
+    private BitmapFont createFont(String file, int size) {
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
+
+        try {
+            FreeTypeFontGenerator.FreeTypeFontParameter params = new FreeTypeFontGenerator.FreeTypeFontParameter();
+            params.size = size;
+            params.characters = FreeTypeFontGenerator.DEFAULT_CHARS + "áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ×";
+            params.minFilter = Texture.TextureFilter.Linear;
+            params.magFilter = Texture.TextureFilter.Linear;
+            return generator.generateFont(params);
+        } finally {
+            generator.dispose();
+        }
+    }
 
     public IntervalView() {
         setSize(1920f, 1080f);
         setVisible(false);
         setTouchable(Touchable.enabled);
 
-        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(
-            Gdx.files.internal("fonts/NunitoSans-SemiBold.ttf")
-        );
-        try {
-            FreeTypeFontGenerator.FreeTypeFontParameter params =
-                new FreeTypeFontGenerator.FreeTypeFontParameter();
-            params.size = 32;
-            params.minFilter = Texture.TextureFilter.Linear;
-            params.magFilter = Texture.TextureFilter.Linear;
-            font = generator.generateFont(params);
-        } finally {
-            generator.dispose();
-        }
+        font = createFont("NunitoSans-SemiBold.ttf", 32);
+        detailFont = createFont("NunitoSans-Regular.ttf", 26);
+        displayFont = createFont("LilitaOne-Regular.ttf", 48);
 
         addImage(load("bandeja.png"), 0f, 0f, 1920f, 1080f);
         balanceLabel = addLabel(GREEN, 112f, 980f, 52f, 40f);
@@ -82,26 +135,255 @@ public final class IntervalView extends Group implements Disposable {
         warning = addImage(load("aviso.png"), 1408f, 960f, 464f, 80f);
         warningTimerLabel = addLabel(BROWN, 1766f, 974f, 80f, 56f);
         warningTimerLabel.setFontScale(1.25f);
+        addSnackHotspot(Snack.OVO, 580f, 446f, 330f, 186f);
+        addSnackHotspot(Snack.TORRESMO, 1050f, 446f, 360f, 190f);
+        addSnackHotspot(Snack.COXINHA, 770f, 275f, 450f, 221f);
+
+        Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        try {
+            pixel.setColor(Color.BLACK);
+            pixel.fill();
+            Texture texture = new Texture(pixel);
+            textures.add(texture);
+            dimmer = addImage(texture, 0f, 0f, 1920f, 1080f);
+        } finally {
+            pixel.dispose();
+        }
+
+        dimmer.getColor().a = 0.5f;
+        dimmer.setTouchable(Touchable.enabled);
+        dimmer.setVisible(false);
+
+        orderPanel.setBounds(610f, 120f, 700f, 840f);
+        orderPanel.setVisible(false);
+        addActor(orderPanel);
+
+        Image paper = new Image(load("papel-compra.png"));
+        paper.setSize(700f, 840f);
+        paper.setTouchable(Touchable.disabled);
+        orderPanel.addActor(paper);
+
+        orderTitle = panelLabel(displayFont, Align.center, 140f, 688f, 420f, 56f);
+        orderSubtitle = panelLabel(detailFont, Align.center, 140f, 640f, 420f, 40f);
+        orderDescription = panelLabel(detailFont, Align.topLeft, 110f, 448f, 480f, 144f);
+        orderDescription.setWrap(true);
+        orderNote = panelLabel(detailFont, Align.topLeft, 110f, 308f, 480f, 96f);
+        orderNote.setWrap(true);
+        orderNote.setFontScale(24f / 26f);
+        orderBalance = panelLabel(detailFont, Align.left, 110f, 216f, 480f, 64f);
+
+        closeOrder = panelLabel(font, Align.center, 530f, 740f, 44f, 44f);
+        closeOrder.setText("×");
+        closeOrder.setTouchable(Touchable.enabled);
+        onClick(closeOrder, this::closeOrderPanel);
+
+        TextureRegionDrawable enabled = new TextureRegionDrawable(
+            new TextureRegion(load("botao-compra.png"))
+        );
+        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(
+            enabled, enabled, null, displayFont
+        );
+        style.fontColor = BROWN;
+        style.disabled = new TextureRegionDrawable(
+            new TextureRegion(load("botao-desabilitado.png"))
+        );
+        style.disabledFontColor = Color.valueOf("6B5840");
+
+        orderButton = new TextButton("", style);
+        orderButton.getLabel().setFontScale(0.75f);
+        orderButton.padBottom(8f);
+        orderButton.setBounds(185f, 64f, 331f, 96f);
+        orderPanel.addActor(orderButton);
+        onClick(orderButton, this::handleOrderButton);
+
+        reconnectDialog = addImage(load("reconexao.png"), 640f, 341f, 640f, 390f);
+        reconnectDialog.setVisible(false);
     }
 
-    public void open(int balance, Snack alreadyBought) {
+    private Label panelLabel(BitmapFont font, int alignment,
+                             float x, float y, float width, float height) {
+        Label label = new Label("", new Label.LabelStyle(font, BROWN));
+        label.setBounds(x, y, width, height);
+        label.setAlignment(alignment);
+        label.setTouchable(Touchable.disabled);
+        orderPanel.addActor(label);
+        return label;
+    }
+
+    private void onClick(Actor actor, Runnable action) {
+        actor.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                action.run();
+            }
+        });
+    }
+
+    private void addSnackHotspot(Snack snack, float x, float y, float w, float h) {
+        Actor hotspot = new Actor();
+        hotspot.setBounds(x, y, w, h);
+        addActor(hotspot);
+
+        onClick(hotspot, () -> {
+            if (isTimeUp() || isReconnecting() || selectedSnack != null
+                || boughtSnacks.contains(snack) || boughtThisInterval) {
+                return;
+            }
+
+            selectedSnack = snack;
+            orderState = OrderState.DETAIL;
+            refreshOrder();
+            refreshModalVisibility();
+        });
+    }
+
+    public void open(int balance, Set<Snack> alreadyBought, boolean boughtThisInterval, boolean refuseNextOrder, Consumer<Snack> onPurchaseConfirmed) {
+
+        this.boughtThisInterval = boughtThisInterval;
+        this.balance = balance;
+        this.refuseNextOrder = refuseNextOrder;
+        this.onPurchaseConfirmed = onPurchaseConfirmed;
+
+        boughtSnacks.clear();
+        boughtSnacks.addAll(alreadyBought);
+        selectedSnack = null;
+        orderState = OrderState.DETAIL;
         remaining = 30f;
+
+        setReconnecting(false);
+        refreshOffers();
+        refreshClock();
+        setVisible(true);
+    }
+
+    private void refreshOffers() {
         balanceLabel.setText(Integer.toString(balance));
 
         for (Snack snack : Snack.values()) {
             int i = snack.ordinal();
-            boolean bought = snack == alreadyBought;
             int missing = snack.price - balance;
+            boolean bought = boughtSnacks.contains(snack);
+            boolean intervalLimit = boughtThisInterval;
 
             boughtBadges[i].setVisible(bought);
-            missingBalance[i].setVisible(!bought && missing > 0);
-            missingBalance[i].setText(
-                missing == 1 ? "Falta 1 moeda" : "Faltam " + missing + " moedas"
-            );
+            missingBalance[i].setVisible(!bought && (intervalLimit || missing > 0));
+
+            if (intervalLimit) {
+                missingBalance[i].setText("Limite do intervalo");
+            } else if (missing == 1) {
+                missingBalance[i].setText("Falta 1 moeda");
+            } else {
+                missingBalance[i].setText("Faltam " + missing + " moedas");
+            }
+        }
+    }
+
+    private void refreshOrder() {
+        Snack snack = selectedSnack;
+        String title = snack.displayName;
+        String subtitle = snack.effect;
+        String description = snack.description;
+        String note = "Uso manual na próxima rodada. Expira ao final dela, mesmo sem usar.";
+        String priceLabel = "Preço";
+        boolean disabled = balance < snack.price;
+        String buttonText = disabled ? "SEM SALDO" : "COMPRAR";
+        boolean canClose = true;
+
+        switch (orderState) {
+            case SENDING:
+                buttonText = "ENVIANDO...";
+                disabled = true;
+                canClose = false;
+                break;
+
+            case CONFIRMED:
+                title = "Pedido Confirmado!";
+                subtitle = snack.displayName;
+                description = "Seu petisco está reservado para a próxima rodada. "
+                    + "Aguarde o fim do intervalo.";
+                note = "Você já comprou neste intervalo. Poderá comprar outro no próximo.";
+                priceLabel = "Compra";
+                buttonText = "AGUARDE...";
+                disabled = true;
+                canClose = false;
+                break;
+
+            case REFUSED:
+                title = "Pedido recusado";
+                subtitle = snack.displayName;
+                description = "Seu pedido não foi aceito. Nenhuma moeda foi descontada.";
+                note = "Volte à bandeja para consultar os petiscos enquanto o intervalo estiver aberto.";
+                buttonText = "VOLTAR";
+                disabled = false;
+                break;
+
+            default:
+                break;
         }
 
-        refreshClock();
-        setVisible(true);
+        orderTitle.setText(title);
+        orderTitle.setFontScale(orderState == OrderState.DETAIL
+            || orderState == OrderState.SENDING ? 1f : 40f / 48f);
+        orderSubtitle.setText(subtitle);
+        orderDescription.setText(description);
+        orderNote.setText(note);
+        orderBalance.setText(
+            priceLabel + ": " + snack.price + " moedas\nSeu saldo: " + balance + " moedas"
+        );
+        orderButton.setText(buttonText);
+        orderButton.setDisabled(disabled);
+        closeOrder.setVisible(canClose);
+    }
+
+    private void handleOrderButton() {
+        if (isTimeUp() || isReconnecting() || orderButton.isDisabled() || boughtThisInterval) {
+            return;
+        }
+
+        if (orderState == OrderState.REFUSED) {
+            closeOrderPanel();
+        } else if (orderState == OrderState.DETAIL) {
+            orderState = OrderState.SENDING;
+            responseTime = 0.6f;
+            refreshOrder();
+        }
+    }
+
+    private void completeOrder() {
+        if (refuseNextOrder) {
+            refuseNextOrder = false;
+            orderState = OrderState.REFUSED;
+        } else {
+            balance -= selectedSnack.price;
+            boughtSnacks.add(selectedSnack);
+            boughtThisInterval = true;
+            orderState = OrderState.CONFIRMED;
+            onPurchaseConfirmed.accept(selectedSnack);
+        }
+
+        refreshOffers();
+        refreshOrder();
+    }
+
+    private void closeOrderPanel() {
+        selectedSnack = null;
+        orderState = OrderState.DETAIL;
+        refreshModalVisibility();
+    }
+
+    public void setReconnecting(boolean reconnecting) {
+        reconnectDialog.setVisible(reconnecting);
+        refreshModalVisibility();
+    }
+
+    public boolean isReconnecting() {
+        return reconnectDialog.isVisible();
+    }
+
+    private void refreshModalVisibility() {
+        boolean showOrder = selectedSnack != null && !isReconnecting();
+        orderPanel.setVisible(showOrder);
+        dimmer.setVisible(showOrder || isReconnecting());
     }
 
     @Override
@@ -112,6 +394,13 @@ public final class IntervalView extends Group implements Disposable {
         super.act(delta);
         remaining = Math.max(0f, remaining - delta);
         refreshClock();
+
+        if (orderState == OrderState.SENDING && !isReconnecting() && !isTimeUp()) {
+            responseTime -= delta;
+            if (responseTime <= 0f) {
+                completeOrder();
+            }
+        }
     }
 
     public boolean isTimeUp() {
@@ -158,6 +447,8 @@ public final class IntervalView extends Group implements Disposable {
     @Override
     public void dispose() {
         font.dispose();
+        detailFont.dispose();
+        displayFont.dispose();
         for (Texture texture : textures) {
             texture.dispose();
         }
