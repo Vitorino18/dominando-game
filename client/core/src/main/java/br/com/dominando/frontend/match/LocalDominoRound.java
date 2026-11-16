@@ -50,7 +50,7 @@ public final class LocalDominoRound {
     private final List<Stone> opponentHand = new ArrayList<>();
     private final List<Stone> stock = new ArrayList<>();
     private final List<Placement> chain = new ArrayList<>();
-    private final Stone requiredOpeningStone;
+    private Stone requiredOpeningStone;
     private Player turn;
     private Player winner;
     private boolean finished;
@@ -177,6 +177,38 @@ public final class LocalDominoRound {
         }
         Stone stone = takeFromStock();
         mutableHand(turn).add(stone);
+        return stone;
+    }
+
+    public Stone swapStone(Stone offered, Random random) {
+        List<Stone> hand = mutableHand(turn);
+        int handIndex = hand.indexOf(offered);
+        if (finished || stock.isEmpty() || handIndex < 0) {
+            return null;
+        }
+
+        int stockIndex = random.nextInt(stock.size());
+        Stone replacement = stock.set(stockIndex, offered);
+        hand.set(handIndex, replacement);
+
+        if (chain.isEmpty()) {
+            requiredOpeningStone = highestDouble(hand);
+        }
+
+        return replacement;
+    }
+
+    public Stone drawWithTorresmo() {
+        Stone stone = draw();
+
+        if (stone != null && !hasLegalMove()) {
+            if (stock.isEmpty()) {
+                pass();
+            } else {
+                turn = turn.other();
+            }
+        }
+
         return stone;
     }
 

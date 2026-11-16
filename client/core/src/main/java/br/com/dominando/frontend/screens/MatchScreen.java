@@ -134,6 +134,8 @@ public class MatchScreen extends ScreenAdapter {
     private Snack nextRoundSnack;
     private Snack roundSnack;
     private boolean snackUsed;
+    private boolean choosingCoxinha;
+    private boolean torresmoArmed;
     private Player snackTurn;
     private boolean humanDrewThisTurn;
     private Stone revealedStone;
@@ -251,7 +253,7 @@ public class MatchScreen extends ScreenAdapter {
 
         gameHud.addActor(playerInfoView);
 
-        snackActionView = new SnackActionView(this::useEgg);
+        snackActionView = new SnackActionView(this::useSnack);
         gameHud.addActorBefore(playerInfoView, snackActionView);
 
         matchSettings = new OpeningDialogs(new GameSettings(), () -> {}, onLeaveMatch);
@@ -314,7 +316,7 @@ public class MatchScreen extends ScreenAdapter {
         cavaView.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (canAct()) {
+                if (canAct() && !choosingCoxinha) {
                     drawForCurrentPlayer();
                 }
             }
@@ -513,10 +515,16 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void startRound(Player preferredStarter) {
+        startRound(preferredStarter, random);
+    }
+
+    private void startRound(Player preferredStarter, Random dealRandom) {
         clearEggReveal();
         roundSnack = nextRoundSnack;
         nextRoundSnack = null;
         snackUsed = false;
+        choosingCoxinha = false;
+        torresmoArmed = false;
         snackTurn = null;
         humanDrewThisTurn = false;
         showRoundSnack();
@@ -545,7 +553,7 @@ public class MatchScreen extends ScreenAdapter {
         playerInfoView.setVisible(true);
         opponentInfoView.setVisible(true);
         roundOpeningPreference = preferredStarter;
-        round = new LocalDominoRound(random, preferredStarter);
+        round = new LocalDominoRound(dealRandom, preferredStarter);
 
         for (Player player : Player.values()) {
             for (Stone stone : round.hand(player)) {
@@ -660,15 +668,19 @@ public class MatchScreen extends ScreenAdapter {
 
     private void createHandActor(Stone stone, Player player) {
         boolean local = player == Player.HUMAN;
-        DominoTile tile = local
-            ? new DominoTile(dominoAssets, stone.first, stone.second)
-            : new DominoTile(dominoAssets, 0, 0);
+        DominoTile tile = local ? new DominoTile(dominoAssets, stone.first, stone.second) : new DominoTile(dominoAssets, 0, 0);
 
         if (local) {
             tile.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
-                    if (canAct()) {
+                    if (!canAct()) {
+                        return;
+                    }
+
+                    if (choosingCoxinha) {
+                        swapWithCoxinha(stone);
+                    } else {
                         selectStone(selectedStone == stone ? null : stone);
                     }
                 }
@@ -751,6 +763,64 @@ public class MatchScreen extends ScreenAdapter {
         snackActionView.highlightTile(tile, 1f);
     }
 
+    private boolean canUseNewSnack() {
+        return !snackUsed && !humanDrewThisTurn && !closedRoundPreview
+            && !intervalView.isVisible() && stage.getActors().peek() == hudLayer
+            && canAct();
+    }
+
+    private boolean canUseCoxinha() {
+        return roundSnack == Snack.COXINHA && canUseNewSnack()
+            && round.stockCount() > 0;
+    }
+
+    private boolean canUseTorresmo() {
+        return roundSnack == Snack.TORRESMO && canUseNewSnack()
+            && round.canDraw();
+    }
+
+    private void useSnack() {
+        if (canUseEgg()) {
+            useEgg();
+            return;
+        }
+
+        if (canUseCoxinha()) {
+            choosingCoxinha = !choosingCoxinha;
+        } else if (canUseTorresmo()) {
+            torresmoArmed = !torresmoArmed;
+        } else {
+            return;
+        }
+
+        selectStone(null);
+        refreshTurn();
+    }
+
+    private void swapWithCoxinha(Stone offered) {
+        if (!choosingCoxinha || !canUseCoxinha()) {
+            return;
+        }
+
+        Stone replacement = round.swapStone(offered, random);
+        if (replacement == null) {
+            return;
+        }
+
+        choosingCoxinha = false;
+        snackUsed = true;
+        selectStone(null);
+
+        DominoTile oldTile = handActors.remove(offered);
+        oldTile.remove();
+        createHandActor(replacement, Player.HUMAN);
+        layoutHand(Player.HUMAN);
+
+        snackActionView.showUsedSnack(Snack.COXINHA);
+        refreshTurn();
+        playerInfoView.setTurnPrompt("Peça trocada");
+    }
+
     private void updateEggReveal(float delta) {
         if (revealedStone == null) {
             return;
@@ -780,6 +850,27 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
+    private void previewOtherSnacks() {
+        boolean alt = Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT);
+
+        if (!alt || !entranceFinished || movingStone || round.isFinished()
+            || closedRoundPreview || roundResultView.isVisible()
+            || stage.getActors().peek() != hudLayer) {
+            return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+            nextRoundSnack = Snack.COXINHA;
+            startRound(Player.HUMAN, new Random(1L));
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.T)) {
+            boolean shift = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+                || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+            nextRoundSnack = Snack.TORRESMO;
+            startRound(Player.OPPONENT, new Random(shift ? 2L : 30L));
+        }
+    }
+
     private void previewEgg() {
         boolean alt = Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT);
@@ -793,8 +884,13 @@ public class MatchScreen extends ScreenAdapter {
         clearEggReveal();
         roundSnack = Snack.OVO;
         snackUsed = false;
+        choosingCoxinha = false;
+        torresmoArmed = false;
         showRoundSnack();
+        refreshTurn();
     }
+
+
 
     private void selectStone(Stone stone) {
         DominoTile previous = handActors.get(selectedStone);
@@ -965,17 +1061,35 @@ public class MatchScreen extends ScreenAdapter {
 
     private void drawForCurrentPlayer() {
         Player player = round.turn();
-        Stone stone = round.draw();
-        if (stone != null) {
-            if (player == Player.HUMAN) {
-                humanDrewThisTurn = true;
-            }
-            selectStone(null);
-            createHandActor(stone, player);
-            handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE,
-                CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
-            layoutHand(player);
-            refreshTurn();
+        boolean useTorresmo = player == Player.HUMAN
+            && torresmoArmed && canUseTorresmo();
+
+        Stone stone = useTorresmo ? round.drawWithTorresmo() : round.draw();
+        if (stone == null) {
+            return;
+        }
+
+        if (player == Player.HUMAN) {
+            humanDrewThisTurn = true;
+        }
+
+        if (useTorresmo) {
+            torresmoArmed = false;
+            snackUsed = true;
+            snackActionView.showUsedSnack(Snack.TORRESMO);
+        }
+
+        selectStone(null);
+        createHandActor(stone, player);
+        handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE,
+            CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
+        layoutHand(player);
+        refreshTurn();
+
+        if (useTorresmo && !round.isFinished()) {
+            playerInfoView.setTurnPrompt(
+                round.turn() == player ? "Escolha sua jogada" : "Sem encaixe"
+            );
         }
     }
 
@@ -1009,6 +1123,8 @@ public class MatchScreen extends ScreenAdapter {
 
         Player currentTurn = round.turn();
         if (currentTurn != snackTurn) {
+            choosingCoxinha = false;
+            torresmoArmed = false;
             snackTurn = currentTurn;
             humanDrewThisTurn = false;
         }
@@ -1027,7 +1143,7 @@ public class MatchScreen extends ScreenAdapter {
             && round.turn() == Player.OPPONENT;
         playerInfoView.setActiveTurn(human);
         opponentInfoView.setActiveTurn(opponent);
-        cavaView.setTouchable(human && round.canDraw() ? Touchable.enabled : Touchable.disabled);
+        cavaView.setTouchable(human && !choosingCoxinha && round.canDraw() ? Touchable.enabled : Touchable.disabled);
         passButton.setAvailable(human && round.canPass());
 
         if (round.isFinished()) {
@@ -1038,6 +1154,10 @@ public class MatchScreen extends ScreenAdapter {
                 Actions.delay(0.45f),
                 Actions.run(this::playOpponentTurn)
             ));
+        } else if (human && choosingCoxinha) {
+            playerInfoView.setTurnPrompt("Escolha a peça");
+        } else if (human && torresmoArmed) {
+            playerInfoView.setTurnPrompt("Cave uma pedra");
         } else if (human && round.canDraw()) {
             playerInfoView.setTurnPrompt("Toque na cava");
         } else if (human && round.canPass()) {
@@ -1719,6 +1839,7 @@ public class MatchScreen extends ScreenAdapter {
         if (!updateInterval(delta)) {
             toggleClosedRoundPreview();
             previewEgg();
+            previewOtherSnacks();
 
             if (closedRoundPreview) {
                 roundResultView.act(dt);
@@ -1747,7 +1868,7 @@ public class MatchScreen extends ScreenAdapter {
         redistributionMessage.setVisible(showRedistribution);
 
         updateEggReveal(delta);
-        snackActionView.setButtonEnabled(canUseEgg());
+        snackActionView.setButtonEnabled(canUseEgg() || canUseCoxinha() || canUseTorresmo());
         stage.draw();
     }
 

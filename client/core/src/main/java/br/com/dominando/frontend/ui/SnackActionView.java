@@ -24,6 +24,7 @@ import br.com.dominando.frontend.ui.IntervalView.Snack;
 public final class SnackActionView extends Group implements Disposable {
     private final List<Texture> textures = new ArrayList<>();
     private final Map<Snack, TextureRegionDrawable> icons = new EnumMap<>(Snack.class);
+    private final Map<Snack, TextureRegionDrawable> usedIcons = new EnumMap<>(Snack.class);
     private final TextureRegionDrawable usedEgg;
     private final Image button;
     private final Image revealGlow;
@@ -43,6 +44,8 @@ public final class SnackActionView extends Group implements Disposable {
         icons.put(Snack.COXINHA, load("coxinha.png"));
         icons.put(Snack.TORRESMO, load("torresmo.png"));
         usedEgg = load("ovo-usado.png");
+        usedIcons.put(Snack.COXINHA, load("coxinha-usada.png"));
+        usedIcons.put(Snack.TORRESMO, load("torresmo-usado.png"));
 
         button = new Image(icons.get(Snack.OVO));
         button.setBounds(1756f, 156f, 120f, 120f);
@@ -78,6 +81,7 @@ public final class SnackActionView extends Group implements Disposable {
 
     public void showSnack(Snack snack) {
         setVisible(snack != null);
+        button.setColor(1f, 1f, 1f, 1f);
         if (snack != null) {
             button.setDrawable(icons.get(snack));
         }
@@ -89,6 +93,11 @@ public final class SnackActionView extends Group implements Disposable {
 
     public void showUsedEgg() {
         button.setDrawable(usedEgg);
+        setButtonEnabled(false);
+    }
+
+    public void showUsedSnack(Snack snack) {
+        button.setDrawable(usedIcons.get(snack));
         setButtonEnabled(false);
     }
 
