@@ -152,9 +152,12 @@ public class MatchScreen extends ScreenAdapter {
     private final Music barAmbience;
     private final Sound shuffleSound;
 
+    private final Sound dealSound;
+
     public MatchScreen(Runnable onLeaveMatch) {
         barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
+        dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -336,6 +339,23 @@ public class MatchScreen extends ScreenAdapter {
         });
 
         startRound(null);
+    }
+
+    private void playDealSounds(float previousTime) {
+        float firstArrival = SHUFFLE_END + DEAL_SLIDE - 0.05f;
+        float lastArrival = firstArrival + 6 * DEAL_INTERVAL;
+
+        if (entranceTime < firstArrival || previousTime >= lastArrival
+            || !gameSettings.isSoundEffectsEnabled()) {
+            return;
+        }
+
+        for (int pair = 0; pair < 7; pair++) {
+            float arrival = firstArrival + pair * DEAL_INTERVAL;
+            if (previousTime < arrival && entranceTime >= arrival) {
+                dealSound.play(0.45f);
+            }
+        }
     }
 
     private void playShuffleSound() {
@@ -1860,6 +1880,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         updateEntrance();
+        playDealSounds(previousEntranceTime);
 
         if (!entranceFinished && entranceTime >= PREPARATION_END) {
             entranceFinished = true;
@@ -1922,6 +1943,8 @@ public class MatchScreen extends ScreenAdapter {
     public void hide() {
         barAmbience.stop();
         shuffleSound.stop();
+        dealSound.stop();
+
         clearEggReveal();
         if (closedRoundPreview) {
             closeClosedRoundPreview();
@@ -1942,6 +1965,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        dealSound.dispose();
         shuffleSound.dispose();
         barAmbience.dispose();
         stage.dispose();
