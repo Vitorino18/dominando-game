@@ -155,6 +155,7 @@ public class MatchScreen extends ScreenAdapter {
     private final Sound dealSound;
     private final Sound drawSound;
     private final Sound passTapSound;
+    private final Sound roundVictorySound;
 
 
     public MatchScreen(Runnable onLeaveMatch) {
@@ -163,6 +164,7 @@ public class MatchScreen extends ScreenAdapter {
         dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
         drawSound = Gdx.audio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
         passTapSound = Gdx.audio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
+        roundVictorySound = Gdx.audio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -344,6 +346,25 @@ public class MatchScreen extends ScreenAdapter {
         });
 
         startRound(null);
+    }
+
+    private void playRoundVictorySound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            roundVictorySound.play(0.75f);
+        }
+    }
+
+    private void showRoundCounts(
+        boolean tie, boolean humanWon, int human, int opponent
+    ) {
+        roundResultView.showCounts(tie, humanWon, human, opponent);
+
+        if (!tie && humanWon) {
+            roundResultView.addAction(Actions.sequence(
+                Actions.delay(0.20f),
+                Actions.run(this::playRoundVictorySound)
+            ));
+        }
     }
 
     private void playDealSounds(float previousTime) {
@@ -1287,20 +1308,20 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         if (round.isBlocked()) {
-            roundResultView.showCounts(
-                winner == null, winner == Player.HUMAN,
-                round.handPoints(Player.HUMAN), round.handPoints(Player.OPPONENT)
-            );
+            showRoundCounts(winner == null, winner == Player.HUMAN, round.handPoints(Player.HUMAN), round.handPoints(Player.OPPONENT));
         } else if (showWinningBoard) {
             boolean humanWon = winner == Player.HUMAN;
             roundResultView.showWinningPlay(humanWon);
-
             SequenceAction result = Actions.sequence(
                 Actions.delay(1.5f),
                 Actions.run(() -> {
                     playerScoreView.setDisplayedScore(humanCaps);
                     opponentScoreView.setDisplayedScore(opponentCaps);
                     roundResultView.showWinningCap(humanWon);
+
+                    if (humanWon) {
+                        playRoundVictorySound();
+                    }
                 }),
                 Actions.delay(2f)
             );
@@ -1317,6 +1338,10 @@ public class MatchScreen extends ScreenAdapter {
             return;
         } else {
             roundResultView.showRoundWinner(winner == Player.HUMAN);
+
+            if (winner == Player.HUMAN) {
+                playRoundVictorySound();
+            }
         }
 
         float delay = round.isBlocked() ? 4.5f : 3.5f;
@@ -1826,11 +1851,9 @@ public class MatchScreen extends ScreenAdapter {
             || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
 
         if (tiePreview) {
-            roundResultView.showCounts(true, false, 15, 15);
+            showRoundCounts(true, false, 15, 15);
         } else {
-            roundResultView.showCounts(
-                false, !opponentWins, opponentWins ? 34 : 12, opponentWins ? 12 : 34
-            );
+            showRoundCounts(false, !opponentWins, opponentWins ? 34 : 12, opponentWins ? 12 : 34);
         }
     }
 
@@ -1980,6 +2003,7 @@ public class MatchScreen extends ScreenAdapter {
         dealSound.stop();
         drawSound.stop();
         passTapSound.stop();
+        roundVictorySound.stop();
 
         clearEggReveal();
         if (closedRoundPreview) {
@@ -2001,6 +2025,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        roundVictorySound.dispose();
         passTapSound.dispose();
         drawSound.dispose();
         dealSound.dispose();
