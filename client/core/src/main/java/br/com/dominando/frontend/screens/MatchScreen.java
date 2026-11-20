@@ -156,6 +156,7 @@ public class MatchScreen extends ScreenAdapter {
     private final Sound drawSound;
     private final Sound passTapSound;
     private final Sound roundVictorySound;
+    private final Sound coinRewardSound;
 
 
     public MatchScreen(Runnable onLeaveMatch) {
@@ -165,6 +166,7 @@ public class MatchScreen extends ScreenAdapter {
         drawSound = Gdx.audio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
         passTapSound = Gdx.audio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
         roundVictorySound = Gdx.audio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
+        coinRewardSound = Gdx.audio.newSound(Gdx.files.internal("audio/moedas-recompensa.wav"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -351,6 +353,14 @@ public class MatchScreen extends ScreenAdapter {
     private void playRoundVictorySound() {
         if (gameSettings.isSoundEffectsEnabled()) {
             roundVictorySound.play(0.75f);
+        }
+    }
+
+    private void showCoinReward() {
+        roundResultView.showWinningCoins();
+
+        if (gameSettings.isSoundEffectsEnabled()) {
+            coinRewardSound.play(0.70f);
         }
     }
 
@@ -1329,7 +1339,7 @@ public class MatchScreen extends ScreenAdapter {
             if (humanWon) {
                 result.addAction(Actions.run(() -> {
                     humanCoins += 2;
-                    roundResultView.showWinningCoins();
+                    showCoinReward();
                 }));
                 result.addAction(Actions.delay(2f));
             }
@@ -1846,6 +1856,21 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
+        boolean coinPreview = Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT)
+            || Gdx.input.isKeyPressed(Input.Keys.ALT_RIGHT);
+
+        if (coinPreview) {
+            roundResultView.showWinningPlay(true);
+
+            roundResultView.addAction(Actions.sequence(
+                Actions.delay(0.30f),
+                Actions.run(this::showCoinReward)
+            ));
+
+            Gdx.input.setInputProcessor(stage);
+            return;
+        }
+
         Gdx.input.setInputProcessor(null);
         boolean tiePreview = Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
             || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT);
@@ -1864,6 +1889,7 @@ public class MatchScreen extends ScreenAdapter {
         refuseRematchInPreview = false;
         roundResultView.clearActions();
         roundResultView.setVisible(false);
+        coinRewardSound.stop();
     }
 
     private boolean updateInterval(float delta) {
@@ -2004,6 +2030,7 @@ public class MatchScreen extends ScreenAdapter {
         drawSound.stop();
         passTapSound.stop();
         roundVictorySound.stop();
+        coinRewardSound.stop();
 
         clearEggReveal();
         if (closedRoundPreview) {
@@ -2025,6 +2052,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        coinRewardSound.dispose();
         roundVictorySound.dispose();
         passTapSound.dispose();
         drawSound.dispose();
