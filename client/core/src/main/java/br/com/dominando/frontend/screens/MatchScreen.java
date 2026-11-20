@@ -149,18 +149,20 @@ public class MatchScreen extends ScreenAdapter {
     private static final float BAR_AMBIENCE_VOLUME = 0.45f;
 
     private final GameSettings gameSettings = new GameSettings();
+
     private final Music barAmbience;
     private final Sound shuffleSound;
-
     private final Sound dealSound;
-
     private final Sound drawSound;
+    private final Sound passTapSound;
+
 
     public MatchScreen(Runnable onLeaveMatch) {
         barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
         dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
         drawSound = Gdx.audio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
+        passTapSound = Gdx.audio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -358,6 +360,12 @@ public class MatchScreen extends ScreenAdapter {
             if (previousTime < arrival && entranceTime >= arrival) {
                 dealSound.play(0.45f);
             }
+        }
+    }
+
+    private void playPassTap() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            passTapSound.play(0.70f);
         }
     }
 
@@ -1097,6 +1105,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         passButton.showTaps(passButton.taps + 1);
+        playPassTap();
 
         if (passButton.taps == 2) {
             passButton.setTouchable(Touchable.disabled);
@@ -1174,7 +1183,18 @@ public class MatchScreen extends ScreenAdapter {
         if (round.canDraw()) {
             drawForCurrentPlayer();
         } else if (round.pass()) {
-            refreshTurn();
+            movingStone = true;
+            playPassTap();
+
+            tilesLayer.addAction(Actions.sequence(
+                Actions.delay(0.18f),
+                Actions.run(this::playPassTap),
+                Actions.delay(0.22f),
+                Actions.run(() -> {
+                    movingStone = false;
+                    refreshTurn();
+                })
+            ));
         }
     }
 
@@ -1959,6 +1979,7 @@ public class MatchScreen extends ScreenAdapter {
         shuffleSound.stop();
         dealSound.stop();
         drawSound.stop();
+        passTapSound.stop();
 
         clearEggReveal();
         if (closedRoundPreview) {
@@ -1980,6 +2001,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        passTapSound.dispose();
         drawSound.dispose();
         dealSound.dispose();
         shuffleSound.dispose();
