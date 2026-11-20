@@ -154,10 +154,13 @@ public class MatchScreen extends ScreenAdapter {
 
     private final Sound dealSound;
 
+    private final Sound drawSound;
+
     public MatchScreen(Runnable onLeaveMatch) {
         barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
         dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
+        drawSound = Gdx.audio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -1125,6 +1128,10 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
+        if (gameSettings.isSoundEffectsEnabled()) {
+            drawSound.play(0.65f);
+        }
+
         if (player == Player.HUMAN) {
             humanDrewThisTurn = true;
         }
@@ -1137,8 +1144,7 @@ public class MatchScreen extends ScreenAdapter {
 
         selectStone(null);
         createHandActor(stone, player);
-        handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE,
-            CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
+        handActors.get(stone).setBounds(CAVA_X + 70f * CAVA_SCALE, CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
         layoutHand(player);
         refreshTurn();
 
@@ -1952,6 +1958,7 @@ public class MatchScreen extends ScreenAdapter {
         barAmbience.stop();
         shuffleSound.stop();
         dealSound.stop();
+        drawSound.stop();
 
         clearEggReveal();
         if (closedRoundPreview) {
@@ -1973,6 +1980,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        drawSound.dispose();
         dealSound.dispose();
         shuffleSound.dispose();
         barAmbience.dispose();
