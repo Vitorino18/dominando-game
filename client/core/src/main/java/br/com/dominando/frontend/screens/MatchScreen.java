@@ -1071,7 +1071,15 @@ public class MatchScreen extends ScreenAdapter {
             Actions.parallel(
                 Actions.moveTo(target.x, target.y, duration, Interpolation.smooth),
                 Actions.sizeTo(target.width, target.height, duration, Interpolation.smooth),
-                Actions.rotateTo(target.rotation, duration, Interpolation.smooth)
+                Actions.rotateTo(target.rotation, duration, Interpolation.smooth),
+                Actions.sequence(
+                    Actions.delay(Math.max(0f, duration - 0.05f)),
+                    Actions.run(() -> {
+                        if (gameSettings.isSoundEffectsEnabled()) {
+                            dealSound.play(0.65f);
+                        }
+                    })
+                )
             ),
             Actions.run(() -> {
                 movingStone = false;
