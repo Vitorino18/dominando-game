@@ -21,7 +21,9 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-import org.w3c.dom.Text;
+import com.badlogic.gdx.audio.Sound;
+
+import br.com.dominando.frontend.settings.GameSettings;
 
 import java.awt.*;
 
@@ -47,12 +49,16 @@ public class WaitingScreen extends ScreenAdapter {
 
     private final String roomCode;
 
+    private final GameSettings gameSettings = new GameSettings();
+    private final Sound clickSound;
+
     public WaitingScreen(String roomCode, Runnable onCancel, Runnable onSimulateArrival){
         if (roomCode == null || roomCode.length() != 4) {
             throw new IllegalArgumentException("Espera-se um código de 4 caracteres");
         }
 
         this.roomCode = roomCode;
+        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
@@ -125,6 +131,7 @@ public class WaitingScreen extends ScreenAdapter {
         copyButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
                 copyCode();
             }
         });
@@ -132,6 +139,7 @@ public class WaitingScreen extends ScreenAdapter {
         cancelButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
                 onCancel.run();
             }
         });
@@ -155,6 +163,12 @@ public class WaitingScreen extends ScreenAdapter {
                 onSimulateArrival.run();
             }
         });
+    }
+
+    private void playClickSound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            clickSound.play(1f);
+        }
     }
 
     private void copyCode() {
@@ -325,6 +339,7 @@ public class WaitingScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
+        clickSound.dispose();
         stage.dispose();
         labelFont.dispose();
         codeFont.dispose();
