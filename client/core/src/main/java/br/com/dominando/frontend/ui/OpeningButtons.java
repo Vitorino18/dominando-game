@@ -14,13 +14,18 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.audio.Sound;
 
 import java.awt.*;
+
+import br.com.dominando.frontend.settings.GameSettings;
 
 public class OpeningButtons implements Disposable {
     private final Color brown = Color.valueOf("3F2412");
     private final Array<Texture> textures = new Array<>();
     private final BitmapFont font;
+    private final GameSettings gameSettings = new GameSettings();
+    private final Sound clickSound;
 
     public OpeningButtons() {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/LilitaOne-Regular.ttf"));
@@ -33,6 +38,16 @@ public class OpeningButtons implements Disposable {
             font = generator.generateFont(parameters);
         } finally {
             generator.dispose();
+        }
+
+        clickSound = Gdx.audio.newSound(
+            Gdx.files.internal("audio/clique-botao.wav")
+        );
+    }
+
+    private void playClickSound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            clickSound.play(1f);
         }
     }
 
@@ -51,6 +66,7 @@ public class OpeningButtons implements Disposable {
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                playClickSound();
                 onClick.run();
             }
         });
@@ -75,6 +91,7 @@ public class OpeningButtons implements Disposable {
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                playClickSound();
                 onClick.run();
             }
         });
@@ -132,6 +149,7 @@ public class OpeningButtons implements Disposable {
 
     @Override
     public void dispose() {
+        clickSound.dispose();
         font.dispose();
         for (Texture texture : textures) {
             texture.dispose();

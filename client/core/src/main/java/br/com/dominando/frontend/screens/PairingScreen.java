@@ -27,6 +27,9 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
 import com.badlogic.gdx.utils.Scaling;
+import com.badlogic.gdx.audio.Sound;
+
+import br.com.dominando.frontend.settings.GameSettings;
 
 public class PairingScreen extends ScreenAdapter {
 
@@ -76,8 +79,12 @@ public class PairingScreen extends ScreenAdapter {
     private final TextField.TextFieldStyle normalNameStyle;
     private final TextField.TextFieldStyle errorNameStyle;
     private boolean simulateNameRejection = false;
+    private final GameSettings gameSettings = new GameSettings();
+    private final Sound clickSound;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
+        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
+
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         labelFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
@@ -156,6 +163,7 @@ public class PairingScreen extends ScreenAdapter {
                     return;
                 }
 
+                playClickSound();
                 finishTyping();
                 startCreatingTable(onCreate);
             }
@@ -168,6 +176,7 @@ public class PairingScreen extends ScreenAdapter {
                     return;
                 }
 
+                playClickSound();
                 finishTyping();
 
                 if (codeField.getText().trim().length() != 4) {
@@ -206,6 +215,12 @@ public class PairingScreen extends ScreenAdapter {
         buildCreateLoading();
         buildTableErrorDialog();
         refreshButtons();
+    }
+
+    private void playClickSound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            clickSound.play(1f);
+        }
     }
 
     private void startCreatingTable(Runnable onCreate) {
@@ -271,8 +286,7 @@ public class PairingScreen extends ScreenAdapter {
         place(tableErrorMessage, 684f, 496.5f, 552f, 64f);
         tableErrorDialog.addActor(tableErrorMessage);
 
-        addCreateErrorButton("VOLTAR", 684f, cream, green,
-            () -> tableErrorDialog.setVisible(false));
+        addCreateErrorButton("VOLTAR", 684f, cream, green, () -> tableErrorDialog.setVisible(false));
 
         addCreateErrorButton("TENTAR DE NOVO", 972f, Color.valueOf("F0B639"), brown, () -> {
             tableErrorDialog.setVisible(false);
@@ -297,6 +311,7 @@ public class PairingScreen extends ScreenAdapter {
         button.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
                 onClick.run();
             }
         });
@@ -612,6 +627,7 @@ public class PairingScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
+        clickSound.dispose();
         stage.dispose();
 
         labelFont.dispose();
