@@ -157,6 +157,7 @@ public class MatchScreen extends ScreenAdapter {
     private final Sound passTapSound;
     private final Sound roundVictorySound;
     private final Sound coinRewardSound;
+    private final Sound snackPurchaseSound;
 
 
     public MatchScreen(Runnable onLeaveMatch) {
@@ -167,6 +168,7 @@ public class MatchScreen extends ScreenAdapter {
         passTapSound = Gdx.audio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
         roundVictorySound = Gdx.audio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
         coinRewardSound = Gdx.audio.newSound(Gdx.files.internal("audio/moedas-recompensa.wav"));
+        snackPurchaseSound = Gdx.audio.newSound(Gdx.files.internal("audio/compra-petisco.wav"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -350,6 +352,12 @@ public class MatchScreen extends ScreenAdapter {
         startRound(null);
     }
 
+    private void playSnackPurchaseSound() {
+        if (gameSettings.isSoundEffectsEnabled()) {
+            snackPurchaseSound.play(0.70f);
+        }
+    }
+
     private void playRoundVictorySound() {
         if (gameSettings.isSoundEffectsEnabled()) {
             roundVictorySound.play(0.75f);
@@ -430,6 +438,8 @@ public class MatchScreen extends ScreenAdapter {
                     boughtSnacks.add(snack);
                     nextRoundSnack = snack;
                 }
+
+                playSnackPurchaseSound();
             });
         });
     }
@@ -2031,6 +2041,7 @@ public class MatchScreen extends ScreenAdapter {
         passTapSound.stop();
         roundVictorySound.stop();
         coinRewardSound.stop();
+        snackPurchaseSound.stop();
 
         clearEggReveal();
         if (closedRoundPreview) {
@@ -2052,6 +2063,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        snackPurchaseSound.dispose();
         coinRewardSound.dispose();
         roundVictorySound.dispose();
         passTapSound.dispose();
