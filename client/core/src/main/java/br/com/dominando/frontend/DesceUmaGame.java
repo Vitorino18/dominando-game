@@ -18,6 +18,8 @@ import br.com.dominando.frontend.audio.GameAudio;
 
 import br.com.dominando.frontend.network.ClienteJogo;
 
+import io.grpc.Status;
+
 
 public class DesceUmaGame extends Game {
 
@@ -37,6 +39,10 @@ public class DesceUmaGame extends Game {
     private String tokenJogador;
     private String nomeJogador;
     private boolean criadorSala;
+
+    private float tempoConsultaSala;
+    private boolean consultaSalaEmAndamento;
+    private boolean consultaSalaSuspensa;
 
     @Override
     public void create() {
@@ -64,10 +70,13 @@ public class DesceUmaGame extends Game {
         tokenJogador = token;
         nomeJogador = nome;
         criadorSala = criador;
+        tempoConsultaSala = 0f;
+        consultaSalaEmAndamento = false;
+        consultaSalaSuspensa = false;
 
         WaitingScreen previousWaiting = waitingScreen;
 
-        waitingScreen = new WaitingScreen(codigoSala, () -> Gdx.app.postRunnable(this::showPairing));
+        waitingScreen = new WaitingScreen(codigoSala, criadorSala, () -> Gdx.app.postRunnable(this::showPairing));
 
         setScreen(waitingScreen);
 
@@ -78,6 +87,55 @@ public class DesceUmaGame extends Game {
 
     private void showOpening() {
         setScreen(openingScreen);
+    }
+
+    private void atualizarEspera() {
+        if (waitingScreen == null || getScreen() != waitingScreen || consultaSalaEmAndamento || consultaSalaSuspensa) {
+            return;
+        }
+
+        tempoConsultaSala -= Gdx.graphics.getDeltaTime();
+
+        if (tempoConsultaSala > 0f) {
+            return;
+        }
+
+        consultaSalaEmAndamento = true;
+        WaitingScreen telaConsultada = waitingScreen;
+
+        clienteJogo.consultarSala(codigoSala, tokenJogador, resposta -> {
+                if (getScreen() != telaConsultada || waitingScreen != telaConsultada) {
+                    return;
+                }
+
+                consultaSalaEmAndamento = false;
+                tempoConsultaSala = 1f;
+
+                if (resposta.getIniciada()) {
+                    telaConsultada.atualizarStatus("Partida iniciada no servidor.");
+                } else if (resposta.getNomesJogadoresCount() == 2) {
+                    telaConsultada.atualizarStatus(criadorSala ? "Adversário conectado. Mesa pronta!" : "Conectados! Aguardando o criador.");
+                } else {
+                    telaConsultada.atualizarStatus("Aguardando o outro jogador...");
+                }
+            },
+            erro -> {
+                if (getScreen() != telaConsultada || waitingScreen != telaConsultada) {
+                    return;
+                }
+
+                consultaSalaEmAndamento = false;
+                Status.Code codigo = Status.fromThrowable(erro).getCode();
+
+                if (codigo == Status.Code.UNAVAILABLE || codigo == Status.Code.DEADLINE_EXCEEDED) {
+                    tempoConsultaSala = 3f;
+                    telaConsultada.atualizarStatus("Conexão indisponível.\nTentando novamente...");
+                } else {
+                    consultaSalaSuspensa = true;
+                    telaConsultada.atualizarStatus("Não foi possível consultar a mesa.\n" + "Volte e conecte novamente.");
+                }
+            }
+        );
     }
 
     private void showMatchIntroDemo() {
@@ -91,6 +149,7 @@ public class DesceUmaGame extends Game {
 
         setScreen(matchIntroScreen);
     }
+
     private void showMatchDemo() {
         setScreen(matchScreen);
     }
@@ -116,6 +175,7 @@ public class DesceUmaGame extends Game {
     @Override
     public void render() {
         super.render();
+        atualizarEspera();
         updateMenuMusic();
         GameAudio.update();
     }

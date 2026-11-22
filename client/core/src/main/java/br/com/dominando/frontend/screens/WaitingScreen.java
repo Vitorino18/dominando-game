@@ -61,7 +61,9 @@ public class WaitingScreen extends ScreenAdapter {
     private final Image rightTexture;
     private final Image divider;
 
-    public WaitingScreen(String roomCode, Runnable onCancel){
+    private final Label statusLabel;
+
+    public WaitingScreen(String roomCode, boolean criador, Runnable onCancel){
         if (roomCode == null || roomCode.length() != 6) {
             throw new IllegalArgumentException("Espera-se um código de 6 caracteres");
         }
@@ -88,7 +90,14 @@ public class WaitingScreen extends ScreenAdapter {
         divider = addSolid(brown, 960f, 0f, 6f, HEIGHT);
 
         addImage(loadTexture("ui/waiting/titulo-mesa-criada.png"), 1160f, 48f, 561f, 187f);
-        addLabel("ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ", inviteFont, new Color(cream.r, cream.g, cream.b, 0.8f), 1130f, 280f, 620f, 30f);
+        addLabel(
+            criador
+                ? "ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ"
+                : "VOCÊ ENTROU NA MESA. AGUARDE O INÍCIO.",
+            inviteFont,
+            new Color(cream.r, cream.g, cream.b, 0.8f),
+            1130f, 280f, 620f, 30f
+        );
 
         TextureRegionDrawable codeBackground = roundedBackground(104, 160, 18, 5, cream, 4);
 
@@ -125,7 +134,15 @@ public class WaitingScreen extends ScreenAdapter {
             caps[i] = addImage(capTexture, 1332f + i * 78f, 716f, 60f, capHeight);
         }
 
-        addLabel("Aguardando o outro jogador...", labelFont, Color.valueOf("f0dcd2"), 1130f, 810f, 620f, 30f);
+        statusLabel = addLabel(
+            criador
+                ? "Aguardando o outro jogador..."
+                : "Aguardando o criador...",
+            labelFont,
+            Color.valueOf("f0dcd2"),
+            1130f, 790f, 620f, 64f
+        );
+        statusLabel.setWrap(true);
 
         TextButton.TextButtonStyle cancelStyle = new TextButton.TextButtonStyle();
 
@@ -153,6 +170,10 @@ public class WaitingScreen extends ScreenAdapter {
                 onCancel.run();
             }
         });
+    }
+
+    public void atualizarStatus(String mensagem) {
+        statusLabel.setText(mensagem);
     }
 
     private void playClickSound() {
