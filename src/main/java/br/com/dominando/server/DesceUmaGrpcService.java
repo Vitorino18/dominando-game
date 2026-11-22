@@ -4,10 +4,13 @@ import br.com.dominando.grpc.*;
 import br.com.dominando.model.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 
 public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImplBase{
     private final SalaService salaService;
+    private final ExecutorService executorStreaming = Executors.newFixedThreadPool(4);
 
     public DesceUmaGrpcService(SalaService salaService) {
         this.salaService = salaService;
@@ -76,6 +79,9 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
 
         try {
             salaService.iniciarSala(request.getCodigoSala(), request.getTokenCriador());
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            sala.notificarJogadores();
 
             IniciarPartidaResponse response = IniciarPartidaResponse.newBuilder().setIniciada(true).build();
 
@@ -107,6 +113,16 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     }
 
     @Override
+    public void acompanharJogo(EstadoJogoRequest request, StreamObserver<EstadoJogoResponse> responseObserver) {
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            sala.acompanharJogo(request.getTokenJogador(), responseObserver, executorStreaming);
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
     public void jogarPeca(JogarPecaRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
 
         try {
@@ -123,6 +139,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
             );
 
             enviarResultado(sala, resultado, responseObserver);
+            sala.notificarJogadores();
 
         } catch (RuntimeException e) {
             responderErro(responseObserver, e);
@@ -140,6 +157,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
             );
 
             enviarResultado(sala, resultado, responseObserver);
+            sala.notificarJogadores();
 
         } catch (RuntimeException e) {
             responderErro(responseObserver, e);
@@ -157,6 +175,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
             );
 
             enviarResultado(sala, resultado, responseObserver);
+            sala.notificarJogadores();
 
         } catch (RuntimeException e) {
             responderErro(responseObserver, e);

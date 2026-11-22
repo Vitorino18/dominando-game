@@ -32,6 +32,9 @@ service DesceUmaService {
 
   rpc ConsultarEstadoJogo (EstadoJogoRequest)
       returns (EstadoJogoResponse);
+
+  rpc AcompanharJogo (EstadoJogoRequest)
+      returns (stream EstadoJogoResponse);
 }
 
 // Criar uma sala //
