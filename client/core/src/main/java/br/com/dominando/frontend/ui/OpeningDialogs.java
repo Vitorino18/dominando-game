@@ -23,6 +23,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.audio.Sound;
 
 public class OpeningDialogs implements Disposable {
     private static final float WIDTH = 1920f;
@@ -46,6 +47,7 @@ public class OpeningDialogs implements Disposable {
     private final Group opponentReconnectOverlay = new Group();
     private final Slider musicVolumeSlider;
     private final Label musicVolumePercent;
+    private final Sound clickSound;
 
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry) {
@@ -54,6 +56,7 @@ public class OpeningDialogs implements Disposable {
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry, Runnable onLeaveMatch) {
         this.settings = settings;
+        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         float extraHeight = 60f + (onLeaveMatch == null ? 0f : 96f);
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
@@ -167,6 +170,7 @@ public class OpeningDialogs implements Disposable {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 settings.setMusicEnabled(musicButton.isChecked());
+                playClickSound();
             }
         });
 
@@ -174,6 +178,7 @@ public class OpeningDialogs implements Disposable {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 settings.setSoundEffectsEnabled(effectsButton.isChecked());
+                playClickSound();
             }
         });
 
@@ -181,16 +186,24 @@ public class OpeningDialogs implements Disposable {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 settings.setVibrationEnabled(vibrationButton.isChecked());
+                playClickSound();
             }
         });
 
         backButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
                 close();
             }
         });
         buildConnectionOverlay(onRetry);
+    }
+
+    private void playClickSound() {
+        if (settings.isSoundEffectsEnabled()) {
+            clickSound.play(1f);
+        }
     }
 
     private void buildConnectionOverlay(Runnable onRetry) {
@@ -408,6 +421,7 @@ public class OpeningDialogs implements Disposable {
     @Override
     public void dispose() {
         close();
+        clickSound.dispose();
 
         titleFont.dispose();
         labelFont.dispose();
