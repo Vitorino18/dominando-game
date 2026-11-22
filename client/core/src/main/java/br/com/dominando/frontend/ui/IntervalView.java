@@ -20,6 +20,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
 
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.EnumSet;
@@ -95,6 +96,10 @@ public final class IntervalView extends Group implements Disposable {
     private boolean boughtThisInterval;
     private final Runnable onUiClick;
 
+    private final Group trayScene = new Group();
+    private final Image trayBackground;
+
+
     private BitmapFont createFont(String file, int size) {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
 
@@ -120,7 +125,8 @@ public final class IntervalView extends Group implements Disposable {
         detailFont = createFont("NunitoSans-Regular.ttf", 26);
         displayFont = createFont("LilitaOne-Regular.ttf", 48);
 
-        addImage(load("bandeja.png"), 0f, 0f, 1920f, 1080f);
+        trayBackground = addImage(load("bandeja-ampliada.png"), -581.7f, 19.2f, 3182.4f, 1060.8f);
+
         balanceLabel = addLabel(GREEN, 112f, 980f, 52f, 40f);
         timerLabel = addLabel(CREAM, 1728f, 984f, 140f, 48f);
 
@@ -140,6 +146,17 @@ public final class IntervalView extends Group implements Disposable {
         addSnackHotspot(Snack.OVO, 580f, 446f, 330f, 186f);
         addSnackHotspot(Snack.TORRESMO, 1050f, 446f, 360f, 190f);
         addSnackHotspot(Snack.COXINHA, 770f, 275f, 450f, 221f);
+
+        while (getChildren().size > 0) {
+            Actor actor = getChildren().first();
+            actor.remove();
+            trayScene.addActor(actor);
+        }
+
+        trayScene.setSize(1920f, 1080f);
+        trayScene.setOrigin(960f, 540f);
+        trayScene.setTouchable(Touchable.childrenOnly);
+        addActor(trayScene);
 
         Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         try {
@@ -203,6 +220,27 @@ public final class IntervalView extends Group implements Disposable {
 
         reconnectDialog = addImage(load("reconexao.png"), 640f, 341f, 640f, 390f);
         reconnectDialog.setVisible(false);
+    }
+
+    public void resize(GameViewport viewport) {
+        viewport.cover(dimmer);
+
+        float halfWidth = Math.min(
+            960f - trayBackground.getX(),
+            trayBackground.getX() + trayBackground.getWidth() - 960f
+        );
+
+        float halfHeight = Math.min(
+            540f - trayBackground.getY(),
+            trayBackground.getY() + trayBackground.getHeight() - 540f
+        );
+
+        float scale = Math.max(
+            viewport.getWorldWidth() / (2f * halfWidth),
+            viewport.getWorldHeight() / (2f * halfHeight)
+        );
+
+        trayScene.setScale(scale);
     }
 
     private Label panelLabel(BitmapFont font, int alignment,

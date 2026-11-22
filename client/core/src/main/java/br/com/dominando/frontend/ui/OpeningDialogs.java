@@ -23,6 +23,7 @@ import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.audio.Sound;
+import com.badlogic.gdx.graphics.g2d.Batch;
 
 import br.com.dominando.frontend.settings.GameSettings;
 
@@ -82,7 +83,7 @@ public class OpeningDialogs implements Disposable {
         overlay.setSize(WIDTH, HEIGHT);
         overlay.setTouchable(Touchable.enabled);
 
-        Image dimmer = new Image(createSolid(new Color (0f,0f,0f,0.5f)));
+        Image dimmer = createDimmer();
         dimmer.setBounds(0f, 0f, WIDTH, HEIGHT);
         dimmer.setTouchable(Touchable.enabled);
         overlay.addActor(dimmer);
@@ -234,6 +235,31 @@ public class OpeningDialogs implements Disposable {
         }
     }
 
+    private Image createDimmer() {
+        return new Image(createSolid(new Color(0f, 0f, 0f, 0.5f))) {
+            @Override
+            public void draw(Batch batch, float parentAlpha) {
+                Stage currentStage = getStage();
+
+                if (currentStage != null) {
+                    float visibleWidth =
+                        currentStage.getViewport().getWorldWidth();
+                    float visibleHeight =
+                        currentStage.getViewport().getWorldHeight();
+
+                    setBounds(
+                        currentStage.getCamera().position.x - visibleWidth / 2f,
+                        currentStage.getCamera().position.y - visibleHeight / 2f,
+                        visibleWidth,
+                        visibleHeight
+                    );
+                }
+
+                super.draw(batch, parentAlpha);
+            }
+        };
+    }
+
     private void buildConnectionOverlay(Runnable onRetry) {
         buildMessageOverlay(connectionOverlay, "SEM CONEXÃO", "Você está sem conexão. Verifique sua internet e\ntente novamente.");
         addDialogButton(connectionOverlay, "VOLTAR", 684f, cream, Color.valueOf("234730"), () -> {
@@ -275,7 +301,7 @@ public class OpeningDialogs implements Disposable {
         target.setSize(WIDTH, HEIGHT);
         target.setTouchable(Touchable.enabled);
 
-        Image dimmer = new Image(createSolid(new Color(0f, 0f, 0f, 0.5f)));
+        Image dimmer = createDimmer();
         dimmer.setBounds(0f, 0f, WIDTH, HEIGHT);
         target.addActor(dimmer);
 

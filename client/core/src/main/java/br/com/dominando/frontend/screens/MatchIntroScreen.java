@@ -21,7 +21,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import br.com.dominando.frontend.ui.GameViewport;
+import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
@@ -58,12 +59,17 @@ public class MatchIntroScreen extends ScreenAdapter {
     private final GameSettings gameSettings;
     private final Sound toastSound;
 
+    private final GameViewport viewport = new GameViewport(WIDTH, HEIGHT);
+    private final Image backgroundImage;
+
+    private final Group handsLayer = new Group();
+
     public MatchIntroScreen(GameSettings gameSettings, Runnable onFinished) {
         this.gameSettings = gameSettings;
         this.onFinished = onFinished;
         toastSound = GameAudio.newSound(Gdx.files.internal("audio/brinde.wav"));
 
-        stage = new Stage(new FitViewport(WIDTH, HEIGHT));
+        stage = new Stage(viewport);
 
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 48);
         textFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
@@ -73,9 +79,10 @@ public class MatchIntroScreen extends ScreenAdapter {
         scene.setTouchable(Touchable.disabled);
         stage.addActor(scene);
 
-        Image background = new Image(loadTexture("ui/transition/fundo-engradados.png"));
-        place(background, 0f, 0f, WIDTH, HEIGHT);
-        scene.addActor(background);
+        backgroundImage = new Image(loadTexture("ui/transition/fundo-engradados.png"));
+        backgroundImage.setScaling(Scaling.fill);
+        place(backgroundImage, 0f, 0f, WIDTH, HEIGHT);
+        scene.addActor(backgroundImage);
 
         Image logo = new Image(loadTexture("ui/transition/logo-desce-uma.png"));
         place(logo, 534f, 70f, 851.776f, 620f);
@@ -102,8 +109,14 @@ public class MatchIntroScreen extends ScreenAdapter {
         leftHand = createHand(leftRegion);
         rightHand = createHand(rightRegion);
 
-        stage.addActor(leftHand);
-        stage.addActor(rightHand);
+        handsLayer.setSize(WIDTH, HEIGHT);
+        handsLayer.setOrigin(WIDTH / 2f, HEIGHT / 2f);
+        handsLayer.setTouchable(Touchable.disabled);
+
+        handsLayer.addActor(leftHand);
+        handsLayer.addActor(rightHand);
+
+        stage.addActor(handsLayer);
 
         finalFade = new Image(blackTexture);
         finalFade.setBounds(0f, 0f, WIDTH, HEIGHT);
@@ -266,7 +279,19 @@ public class MatchIntroScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        viewport.update(width, height, true);
+
+        viewport.cover(backgroundImage);
+        viewport.cover(dimmer);
+        viewport.cover(finalFade);
+
+        float handsScale = Math.max(viewport.getWorldWidth() / WIDTH, viewport.getWorldHeight() / HEIGHT);
+
+        handsLayer.setScale(handsScale);
     }
 
     @Override

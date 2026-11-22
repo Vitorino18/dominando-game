@@ -11,7 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -30,6 +30,7 @@ public class OpeningScreen extends ScreenAdapter {
     private final Color background = Color.valueOf("F0DCB2");
     private final Stage stage;
     private final Texture backgroundTexture;
+    private final Image backgroundImage;
     private final Texture logoTexture;
     private final OpeningButtons buttons;
     private final OpeningDialogs openingDialogs;
@@ -42,12 +43,16 @@ public class OpeningScreen extends ScreenAdapter {
     private boolean simulateConnectionFailure = false;
 
     public OpeningScreen(Runnable onEnter) {
-        stage = new Stage(new FitViewport(WIDTH, HEIGHT));
+        stage = new Stage(new ExtendViewport(WIDTH, HEIGHT));
 
         backgroundTexture = loadTexture("ui/opening/fundo-engradados.png");
         logoTexture = loadTexture("ui/opening/logo-desce-uma.png");
 
-        addImage(backgroundTexture, 0f, 0f, 1920f, 1081f);
+        backgroundImage = new Image(backgroundTexture);
+        backgroundImage.setScaling(Scaling.fill);
+        backgroundImage.setBounds(0f, 0f, WIDTH, HEIGHT);
+        backgroundImage.setTouchable(Touchable.disabled);
+        stage.addActor(backgroundImage);
         addImage(logoTexture, 534.002f, 70f, 851.775f, 620f);
 
         openingDialogs = new OpeningDialogs(new GameSettings(), () -> startLoading(onEnter));
@@ -158,7 +163,20 @@ public class OpeningScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        stage.getViewport().update(width, height, false);
+
+        stage.getCamera().position.set(WIDTH / 2f, HEIGHT / 2f, 0f);
+        stage.getCamera().update();
+
+        float visibleWidth = stage.getViewport().getWorldWidth();
+        float visibleHeight = stage.getViewport().getWorldHeight();
+
+        backgroundImage.setBounds((WIDTH - visibleWidth) / 2f, (HEIGHT - visibleHeight) / 2f, visibleWidth, visibleHeight);
+        settingsButton.setPosition((WIDTH + visibleWidth) / 2f - 156f, (HEIGHT + visibleHeight) / 2f - 144f);
     }
 
     private void resetLoading() {

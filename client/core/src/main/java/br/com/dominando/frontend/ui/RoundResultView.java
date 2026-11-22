@@ -139,6 +139,10 @@ public final class RoundResultView extends Group implements Disposable {
         }
     }
 
+    public void resize(GameViewport viewport) {
+        viewport.cover(closedRoundDimmer);
+    }
+
     public void showCounts(boolean tie, boolean humanWon, int human, int opponent) {
         resetContent();
         showTitle(tie ? tieTitle : closedTitle, tie ? "EMPATE!" : "MESA FECHADA");

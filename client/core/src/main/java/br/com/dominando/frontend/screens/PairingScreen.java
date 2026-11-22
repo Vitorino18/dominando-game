@@ -20,7 +20,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import br.com.dominando.frontend.ui.GameViewport;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -84,10 +84,20 @@ public class PairingScreen extends ScreenAdapter {
     private final GameSettings gameSettings = new GameSettings();
     private final Sound clickSound;
 
+    private final GameViewport viewport = new GameViewport(WIDTH, HEIGHT);
+
+    private final Image backgroundImage;
+    private final Image rightBackground;
+    private final Image rightTexture;
+    private final Image divider;
+
+    private Image loadingDimmer;
+    private Image errorDimmer;
+
     public PairingScreen(Runnable onBack, Runnable onCreate) {
         clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
 
-        stage = new Stage(new FitViewport(WIDTH, HEIGHT));
+        stage = new Stage(viewport);
 
         labelFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
         inputFont = createFont("fonts/NunitoSans-SemiBold.ttf", 28);
@@ -97,12 +107,17 @@ public class PairingScreen extends ScreenAdapter {
         loadingMessageFont = createFont("fonts/NunitoSans-Regular.ttf", 24);
         dialogButtonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
 
-        addAsset("fundo-engradados.png", 0f, 0f, 1920f, 1080f);
+        backgroundImage = addAsset("fundo-engradados.png", 0f, 0f, WIDTH, HEIGHT);
+        backgroundImage.setScaling(Scaling.fill);
+
         addAsset("logo-desce-uma.png", 145f, 64f, 649.822f, 473f);
 
-        addSolid(green, 960f, 0f, 960f, 1080f);
-        addAsset("textura-verde.png", 960f, 0f, 960f, 1080f);
-        addSolid(brown, 960f, 0f, 6f, 1080f);
+        rightBackground = addSolid(green, 960f, 0f, 960f, HEIGHT);
+
+        rightTexture = addAsset("textura-verde.png", 960f, 0f, 960f, HEIGHT);
+        rightTexture.setScaling(Scaling.fill);
+
+        divider = addSolid(brown, 960f, 0f, 6f, HEIGHT);
 
         addAsset("titulo-escolha-mesa.png", 1160f, 48f, 561f, 187f);
 
@@ -271,6 +286,7 @@ public class PairingScreen extends ScreenAdapter {
         tableErrorDialog.setTouchable(Touchable.enabled);
 
         Image dimmer = new Image(solid(new Color(0f, 0f, 0f, 0.5f)));
+        errorDimmer = dimmer;
         place(dimmer, 0f, 0f, WIDTH, HEIGHT);
         tableErrorDialog.addActor(dimmer);
 
@@ -353,6 +369,7 @@ public class PairingScreen extends ScreenAdapter {
         createLoading.setTouchable(Touchable.enabled);
 
         Image dimmer = new Image(solid(new Color(0f, 0f, 0f, 0.5f)));
+        loadingDimmer = dimmer;
         place(dimmer, 0f, 0f, WIDTH, HEIGHT);
         createLoading.addActor(dimmer);
 
@@ -485,13 +502,14 @@ public class PairingScreen extends ScreenAdapter {
         return image;
     }
 
-    private void addSolid(
-        Color color, float x, float top, float width, float height) {
+    private Image addSolid(Color color, float x, float top, float width, float height) {
         Image image = new Image(solid(color));
         image.setTouchable(Touchable.disabled);
 
         place(image, x, top, width, height);
         stage.addActor(image);
+
+        return image;
     }
 
     private void place(Actor actor, float x, float top, float width, float height) {
@@ -609,7 +627,21 @@ public class PairingScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        viewport.update(width, height, true);
+        viewport.cover(backgroundImage);
+
+        rightBackground.setBounds(WIDTH / 2f, viewport.getBottom(), viewport.getWorldWidth() / 2f, viewport.getWorldHeight());
+
+        rightTexture.setBounds(rightBackground.getX(), rightBackground.getY(), rightBackground.getWidth(), rightBackground.getHeight());
+
+        divider.setBounds(WIDTH / 2f, viewport.getBottom(), 6f, viewport.getWorldHeight());
+
+        viewport.cover(loadingDimmer);
+        viewport.cover(errorDimmer);
     }
 
     @Override

@@ -15,7 +15,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import br.com.dominando.frontend.ui.GameViewport;
+import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -151,6 +152,8 @@ public class MatchScreen extends ScreenAdapter {
 
     private final GameSettings gameSettings = new GameSettings();
 
+    private final GameViewport viewport = new GameViewport(WIDTH, HEIGHT);
+
     private final Music barAmbience;
     private final Sound shuffleSound;
     private final Sound dealSound;
@@ -160,12 +163,12 @@ public class MatchScreen extends ScreenAdapter {
     private final Sound coinRewardSound;
     private final Sound snackPurchaseSound;
     private final Runnable onUiClick;
-
+    private final ImageButton settingsButton;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this.onUiClick = onUiClick;
 
-        barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
+        barAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = GameAudio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
         dealSound = GameAudio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
         drawSound = GameAudio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
@@ -177,18 +180,19 @@ public class MatchScreen extends ScreenAdapter {
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
-        stage = new Stage(new FitViewport(WIDTH, HEIGHT));
+        stage = new Stage(viewport);
 
         background = new Image(backgroundTexture);
-        background.setBounds(0, 0, WIDTH, HEIGHT);
+        background.setScaling(Scaling.fill);
+        background.setBounds(0f, 0f, WIDTH, HEIGHT);
         background.setTouchable(Touchable.disabled);
-
         stage.addActor(background);
 
         seatedTexture = new Texture(Gdx.files.internal("ui/match/cenario-sentado.png"));
         seatedTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         seatedBackground = new Image(seatedTexture);
+        seatedBackground.setScaling(Scaling.fill);
         seatedBackground.setBounds(0f, 0f, WIDTH, HEIGHT);
         seatedBackground.setTouchable(Touchable.disabled);
         seatedBackground.getColor().a = 0f;
@@ -200,10 +204,10 @@ public class MatchScreen extends ScreenAdapter {
         tableTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         floorBackground = new Image(floorTexture);
+        floorBackground.setScaling(Scaling.fill);
         floorBackground.setBounds(0f, 0f, WIDTH, HEIGHT);
         floorBackground.setTouchable(Touchable.disabled);
         floorBackground.setVisible(false);
-
         stage.addActor(floorBackground);
 
         tableImage = new Image(tableTexture);
@@ -213,7 +217,6 @@ public class MatchScreen extends ScreenAdapter {
 
         stage.addActor(tableImage);
         stage.addActor(seatedBackground);
-
 
         dominoAssets = new DominoAssets();
 
@@ -291,7 +294,7 @@ public class MatchScreen extends ScreenAdapter {
         matchSettingsIcon = new Texture(Gdx.files.internal("ui/icons/engrenagem-partida.png"));
         matchSettingsIcon.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
-        ImageButton settingsButton = new ImageButton(
+        settingsButton = new ImageButton(
             new TextureRegionDrawable(new TextureRegion(matchSettingsIcon))
         );
         settingsButton.getImageCell().size(48f, 48f);
@@ -360,13 +363,33 @@ public class MatchScreen extends ScreenAdapter {
 
     private void playSnackPurchaseSound() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            snackPurchaseSound.play(0.70f);
+            GameAudio.play(snackPurchaseSound, 0.70f);
         }
     }
 
+    private void layoutSideControls() {
+        float margin = 48f;
+
+        float left = viewport.getLeft();
+        float bottom = viewport.getBottom();
+        float right = left + viewport.getWorldWidth();
+        float top = bottom + viewport.getWorldHeight();
+
+        opponentInfoView.setPosition(left + margin, top - margin - opponentInfoView.getHeight());
+
+        playerInfoView.setPosition(right - margin - playerInfoView.getWidth(), bottom + margin);
+
+        settingsButton.setPosition(right - margin - settingsButton.getWidth(), top - margin - settingsButton.getHeight());
+
+        passButton.setPosition(opponentInfoView.getX() + (opponentInfoView.getWidth() - passButton.getWidth()) / 2f, bottom + margin);
+
+        snackActionView.setPlayerAnchor(playerInfoView.getX(), playerInfoView.getY());
+    }
+
+
     private void playRoundVictorySound() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            roundVictorySound.play(0.75f);
+            GameAudio.play(roundVictorySound, 0.75f);
         }
     }
 
@@ -374,7 +397,7 @@ public class MatchScreen extends ScreenAdapter {
         roundResultView.showWinningCoins();
 
         if (gameSettings.isSoundEffectsEnabled()) {
-            coinRewardSound.play(0.70f);
+            GameAudio.play(coinRewardSound, 0.70f);
         }
     }
 
@@ -403,20 +426,20 @@ public class MatchScreen extends ScreenAdapter {
         for (int pair = 0; pair < 7; pair++) {
             float arrival = firstArrival + pair * DEAL_INTERVAL;
             if (previousTime < arrival && entranceTime >= arrival) {
-                dealSound.play(0.45f);
+                GameAudio.play(dealSound, 0.45f);
             }
         }
     }
 
     private void playPassTap() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            passTapSound.play(0.70f);
+            GameAudio.play(passTapSound, 0.70f);
         }
     }
 
     private void playShuffleSound() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            shuffleSound.play(0.85f);
+            GameAudio.play(shuffleSound, 0.85f);
         }
     }
 
@@ -576,16 +599,19 @@ public class MatchScreen extends ScreenAdapter {
             float tailProgress = Math.max(0f, Math.min(1f, (entranceTime - ENTRANCE_DURATION) / BAR_AMBIENCE_TAIL_DURATION));
             float duck = 1f - (1f - BAR_AMBIENCE_SHUFFLE_LEVEL) * smooth(duckProgress);
             float tail = 1f - smooth(tailProgress);
-            barAmbience.setVolume(BAR_AMBIENCE_VOLUME * fade * duck * tail);
+            GameAudio.setVolume(barAmbience, BAR_AMBIENCE_VOLUME * fade * duck * tail);
         }
 
         float moveProgress = Math.min(entranceTime / 2f, 1f);
         float movement = moveProgress * moveProgress * (3f - 2f * moveProgress);
         float scale = 1f + 0.12f * movement;
-        float width = WIDTH * scale;
-        float height = HEIGHT * scale;
+        float visibleWidth = viewport.getWorldWidth();
+        float visibleHeight = viewport.getWorldHeight();
 
-        background.setBounds((WIDTH - width) * 0.5f, (HEIGHT - height) * 0.45f, width, height);
+        float width = visibleWidth * scale;
+        float height = visibleHeight * scale;
+
+        background.setBounds(viewport.getLeft() + (visibleWidth - width) * 0.5f, viewport.getBottom() + (visibleHeight - height) * 0.45f, width, height);
 
         float seatedProgress = Math.max(0f, Math.min((entranceTime - 2f) / 0.9f, 1f));
         background.setVisible(seatedProgress < 1f);
@@ -1136,7 +1162,7 @@ public class MatchScreen extends ScreenAdapter {
                     Actions.delay(Math.max(0f, duration - 0.05f)),
                     Actions.run(() -> {
                         if (gameSettings.isSoundEffectsEnabled()) {
-                            dealSound.play(0.65f);
+                            GameAudio.play(dealSound, 0.65f);
                         }
                     })
                 )
@@ -1187,7 +1213,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         if (gameSettings.isSoundEffectsEnabled()) {
-            drawSound.play(0.65f);
+            GameAudio.play(drawSound, 0.65f);
         }
 
         if (player == Player.HUMAN) {
@@ -1795,8 +1821,8 @@ public class MatchScreen extends ScreenAdapter {
     @Override
     public void show() {
         if (entranceTime < ENTRANCE_DURATION && gameSettings.isSoundEffectsEnabled()) {
-            barAmbience.setVolume(0f);
-            barAmbience.play();
+            GameAudio.setVolume(barAmbience, 0f);
+            GameAudio.play(barAmbience);
         }
         updateEntrance();
         passButton.setAvailable(canAct() && round.canPass());
@@ -1977,7 +2003,7 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         if (previousEntranceTime < BAR_AMBIENCE_END && entranceTime >= BAR_AMBIENCE_END) {
-            barAmbience.stop();
+            GameAudio.stop(barAmbience);
         }
 
         updateEntrance();
@@ -2024,10 +2050,11 @@ public class MatchScreen extends ScreenAdapter {
         boolean readyToPlay = entranceTime >= PREPARATION_END;
         boolean showRedistribution = redistributingTie && !readyToPlay;
         boolean showFinalReceipt = roundResultView.isFinalReceiptVisible();
+        boolean showInterval = intervalView.isVisible();
 
-        tilesLayer.setVisible(!showFinalReceipt && (readyToPlay || showRedistribution));
+        tilesLayer.setVisible(!showFinalReceipt && !showInterval && (readyToPlay || showRedistribution));
         hudLayer.setVisible(readyToPlay);
-        gameHud.setVisible(!showFinalReceipt);
+        gameHud.setVisible(!showFinalReceipt && !showInterval);
         redistributionMessage.setVisible(showRedistribution);
 
         updateEggReveal(delta);
@@ -2037,12 +2064,26 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        viewport.update(width, height, true);
+
+        viewport.cover(seatedBackground);
+        viewport.cover(floorBackground);
+        viewport.cover(intervalFade);
+
+        updateEntrance();
+        layoutSideControls();
+
+        roundResultView.resize(viewport);
+        intervalView.resize(viewport);
     }
 
     @Override
     public void hide() {
-        barAmbience.stop();
+        GameAudio.stop(barAmbience);
         shuffleSound.stop();
         dealSound.stop();
         drawSound.stop();
@@ -2071,14 +2112,14 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
-        snackPurchaseSound.dispose();
-        coinRewardSound.dispose();
-        roundVictorySound.dispose();
-        passTapSound.dispose();
-        drawSound.dispose();
-        dealSound.dispose();
-        shuffleSound.dispose();
-        barAmbience.dispose();
+        GameAudio.dispose(snackPurchaseSound);
+        GameAudio.dispose(coinRewardSound);
+        GameAudio.dispose(roundVictorySound);
+        GameAudio.dispose(passTapSound);
+        GameAudio.dispose(drawSound);
+        GameAudio.dispose(dealSound);
+        GameAudio.dispose(shuffleSound);
+        GameAudio.dispose(barAmbience);
         stage.dispose();
         roundResultView.dispose();
         intervalView.dispose();

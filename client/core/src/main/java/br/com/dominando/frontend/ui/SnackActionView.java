@@ -30,12 +30,13 @@ public final class SnackActionView extends Group implements Disposable {
     private final Image revealGlow;
     private final Image revealTrack;
     private final Image revealProgress;
+    private final Image base;
 
     public SnackActionView(Runnable onActivate) {
         setTouchable(Touchable.childrenOnly);
         setVisible(false);
 
-        Image base = new Image(load("base-jogador.png"));
+        base = new Image(load("base-jogador.png"));
         base.setBounds(1544f, 48f, 344f, 240f);
         base.setTouchable(Touchable.disabled);
         addActor(base);
@@ -77,6 +78,11 @@ public final class SnackActionView extends Group implements Disposable {
         addActor(revealProgress);
 
         hideHighlight();
+    }
+
+    public void setPlayerAnchor(float x, float y) {
+        base.setPosition(x, y + 4f);
+        button.setPosition(x + 212f, y + 112f);
     }
 
     public void showSnack(Snack snack) {

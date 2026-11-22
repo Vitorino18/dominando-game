@@ -20,7 +20,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import br.com.dominando.frontend.ui.GameViewport;
+import com.badlogic.gdx.utils.Scaling;
 import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
@@ -53,6 +54,13 @@ public class WaitingScreen extends ScreenAdapter {
     private final GameSettings gameSettings = new GameSettings();
     private final Sound clickSound;
 
+    private final GameViewport viewport = new GameViewport(WIDTH, HEIGHT);
+
+    private final Image backgroundImage;
+    private final Image rightBackground;
+    private final Image rightTexture;
+    private final Image divider;
+
     public WaitingScreen(String roomCode, Runnable onCancel, Runnable onSimulateArrival){
         if (roomCode == null || roomCode.length() != 4) {
             throw new IllegalArgumentException("Espera-se um código de 4 caracteres");
@@ -60,21 +68,24 @@ public class WaitingScreen extends ScreenAdapter {
 
         this.roomCode = roomCode;
         clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
-        stage = new Stage(new FitViewport(WIDTH, HEIGHT));
+        stage = new Stage(viewport);
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
         codeFont = createFont("fonts/NunitoSans-ExtraBold.ttf", 72);
         inviteFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 36);
 
-        addImage(loadTexture("ui/pairing/fundo-engradados.png"), 0f, 0f, 1920f, 1080f);
+        backgroundImage = addImage(loadTexture("ui/pairing/fundo-engradados.png"), 0f, 0f, WIDTH, HEIGHT);
+        backgroundImage.setScaling(Scaling.fill);
+
         addImage(loadTexture("ui/pairing/logo-desce-uma.png"), 145f, 64f, 649.822f, 473f);
 
-        addSolid(green, 960f, 0f, 960f, 1080f);
+        rightBackground = addSolid(green, 960f, 0f, 960f, HEIGHT);
 
-        addImage(loadTexture("ui/pairing/textura-verde.png"), 960f, 0f, 960f, 1080f);
+        rightTexture = addImage(loadTexture("ui/pairing/textura-verde.png"), 960f, 0f, 960f, HEIGHT);
+        rightTexture.setScaling(Scaling.fill);
 
-        addSolid(brown, 960f, 0f, 6f, 1080f);
+        divider = addSolid(brown, 960f, 0f, 6f, HEIGHT);
 
         addImage(loadTexture("ui/waiting/titulo-mesa-criada.png"), 1160f, 48f, 561f, 187f);
         addLabel("ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ", inviteFont, new Color(cream.r, cream.g, cream.b, 0.8f), 1130f, 280f, 620f, 30f);
@@ -237,14 +248,16 @@ public class WaitingScreen extends ScreenAdapter {
         return label;
     }
 
-    private void addSolid(
-        Color color, float x, float top, float width, float height) {
+    private Image addSolid(Color color, float x, float top, float width, float height) {
         Image image = new Image(solid(color));
         image.setTouchable(Touchable.disabled);
 
         place(image, x, top, width, height);
         stage.addActor(image);
+
+        return image;
     }
+
     private void place(Actor actor, float x, float top, float width, float height) {
         actor.setBounds(x, HEIGHT - top - height, width, height);
     }
@@ -323,7 +336,18 @@ public class WaitingScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        stage.getViewport().update(width, height, true);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        viewport.update(width, height, true);
+        viewport.cover(backgroundImage);
+
+        rightBackground.setBounds(WIDTH / 2f, viewport.getBottom(), viewport.getWorldWidth() / 2f, viewport.getWorldHeight());
+
+        rightTexture.setBounds(rightBackground.getX(), rightBackground.getY(), rightBackground.getWidth(), rightBackground.getHeight());
+
+        divider.setBounds(WIDTH / 2f, viewport.getBottom(), 6f, viewport.getWorldHeight());
     }
 
     @Override
