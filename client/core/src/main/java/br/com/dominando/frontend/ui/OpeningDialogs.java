@@ -159,6 +159,7 @@ public class OpeningDialogs implements Disposable {
             exitButton.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
+                    playClickSound();
                     Stage stage = overlay.getStage();
                     close();
                     stage.addActor(exitOverlay);
@@ -207,26 +208,27 @@ public class OpeningDialogs implements Disposable {
     }
 
     private void buildConnectionOverlay(Runnable onRetry) {
-        buildMessageOverlay(connectionOverlay, "SEM CONEXÃO",
-            "Você está sem conexão. Verifique sua internet e\ntente novamente.");
+        buildMessageOverlay(connectionOverlay, "SEM CONEXÃO", "Você está sem conexão. Verifique sua internet e\ntente novamente.");
+        addDialogButton(connectionOverlay, "VOLTAR", 684f, cream, Color.valueOf("234730"), () -> {
+                playClickSound();
+                close();
+            });
 
-        addDialogButton(connectionOverlay, "VOLTAR", 684f, cream,
-            Color.valueOf("234730"), this::close);
-        addDialogButton(connectionOverlay, "TENTAR DE NOVO", 972f,
-            Color.valueOf("F0B639"), brown, () -> {
+        addDialogButton(connectionOverlay, "TENTAR DE NOVO", 972f, Color.valueOf("F0B639"), brown, () -> {
+                playClickSound();
                 close();
                 onRetry.run();
             });
     }
 
     private void buildExitOverlay(Runnable onLeaveMatch) {
-        buildMessageOverlay(exitOverlay, "SAIR DA MESA?",
-            "Se sair, a partida atual será encerrada.");
+        buildMessageOverlay(exitOverlay, "SAIR DA MESA?", "Se sair, a partida atual será encerrada.");
 
-        addDialogButton(exitOverlay, "CONTINUAR", 684f, cream,
-            Color.valueOf("234730"), this::close);
-        addDialogButton(exitOverlay, "SAIR DA MESA", 972f,
-            Color.valueOf("F0B639"), brown, onLeaveMatch);
+        addDialogButton(exitOverlay, "CONTINUAR", 684f, cream, Color.valueOf("234730"), () -> {
+                playClickSound();
+                close();
+            });
+        addDialogButton(exitOverlay, "SAIR DA MESA", 972f, Color.valueOf("F0B639"), brown, onLeaveMatch);
     }
 
     private void buildReconnectionOverlays() {
