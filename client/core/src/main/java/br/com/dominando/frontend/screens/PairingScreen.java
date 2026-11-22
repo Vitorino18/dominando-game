@@ -33,6 +33,9 @@ import br.com.dominando.frontend.settings.GameSettings;
 
 import br.com.dominando.frontend.audio.GameAudio;
 
+import br.com.dominando.frontend.network.ClienteJogo;
+import io.grpc.Status;
+
 public class PairingScreen extends ScreenAdapter {
 
     private static final float WIDTH = 1920f;
@@ -68,11 +71,9 @@ public class PairingScreen extends ScreenAdapter {
     private Label loadingMessage;
     private final Group tableErrorDialog = new Group();
     private final BitmapFont dialogButtonFont;
-    private boolean simulateCreateFailure = false;
     private Label tableErrorTitle;
     private Label tableErrorMessage;
     private Runnable retryTableAction;
-    private boolean simulateJoinFailure = false;
     private final BitmapFont nameErrorFont;
     private final Label nameError;
     private final Label separatorLabel;
@@ -80,7 +81,6 @@ public class PairingScreen extends ScreenAdapter {
     private final Image separatorImage;
     private final TextField.TextFieldStyle normalNameStyle;
     private final TextField.TextFieldStyle errorNameStyle;
-    private boolean simulateNameRejection = false;
     private final GameSettings gameSettings = new GameSettings();
     private final Sound clickSound;
 
@@ -94,7 +94,10 @@ public class PairingScreen extends ScreenAdapter {
     private Image loadingDimmer;
     private Image errorDimmer;
 
-    public PairingScreen(Runnable onBack, Runnable onCreate) {
+    public PairingScreen(Runnable onBack, ClienteJogo clienteJogo, SalaListener onSalaConectada) {
+        this.clienteJogo = clienteJogo;
+        this.onSalaConectada = onSalaConectada;
+
         clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
 
         stage = new Stage(viewport);
@@ -182,7 +185,7 @@ public class PairingScreen extends ScreenAdapter {
 
                 playClickSound();
                 finishTyping();
-                startCreatingTable(onCreate);
+                startCreatingTable();
             }
         });
 
@@ -196,7 +199,7 @@ public class PairingScreen extends ScreenAdapter {
                 playClickSound();
                 finishTyping();
 
-                if (codeField.getText().trim().length() != 4) {
+                if (codeField.getText().trim().length() != 6) {
                     setCodeErrorVisible(true);
                     return;
                 }
@@ -234,43 +237,105 @@ public class PairingScreen extends ScreenAdapter {
         refreshButtons();
     }
 
+    public interface SalaListener {
+        void conectou(String codigo, String token, String nome, boolean criador);
+    }
+
+    private final ClienteJogo clienteJogo;
+    private final SalaListener onSalaConectada;
+    private boolean telaAtiva;
+    private int tentativaSala;
+
     private void playClickSound() {
         if (gameSettings.isSoundEffectsEnabled()) {
             GameAudio.play(clickSound, 1f);
         }
     }
 
-    private void startCreatingTable(Runnable onCreate) {
-        startTableLoading("CRIANDO MESA...", "Aguarde enquanto preparamos sua mesa.", () -> {
-            if (simulateNameRejection) {
-                simulateNameRejection = false;
-                createLoading.setVisible(false);
-                setNameErrorVisible(true);
-                return;
-            }
-            if (simulateCreateFailure) {
-                simulateCreateFailure = false;
-                showTableError("NÃO FOI POSSÍVEL CRIAR", "Não conseguimos criar sua mesa. Tente\nnovamente.", () -> startCreatingTable(onCreate));
+    private void startCreatingTable() {
+        if (createLoading.isVisible()) {
+            return;
+        }
+
+        String nome = nameField.getText().trim();
+        int tentativa = ++tentativaSala;
+
+        startTableLoading(
+            "CRIANDO MESA...",
+            "Aguarde enquanto preparamos sua mesa."
+        );
+
+        clienteJogo.criarSala(nome, resposta -> {
+            if (!telaAtiva || tentativa != tentativaSala) {
                 return;
             }
 
-            onCreate.run();
+            createLoading.setVisible(false);
+
+            onSalaConectada.conectou(
+                resposta.getCodigoSala(),
+                resposta.getTokenJogador(),
+                nome,
+                true
+            );
+        }, erro -> {
+            if (!telaAtiva || tentativa != tentativaSala) {
+                return;
+            }
+
+            showTableError(
+                "NÃO FOI POSSÍVEL CRIAR",
+                mensagemErro(erro),
+                this::startCreatingTable
+            );
         });
     }
 
     private void startJoiningTable() {
-        startTableLoading("ENTRANDO NA MESA...", "Aguarde enquanto conectamos você à mesa.",
-            () -> {
-                if (simulateJoinFailure) {
-                    simulateJoinFailure = false;
-                    showTableError("NÃO FOI POSSÍVEL ENTRAR", "Não conseguimos entrar nesta mesa. Confira o\ncódigo e tente novamente.", this::startJoiningTable);
-                    return;
-                }
+        if (createLoading.isVisible()) {
+            return;
+        }
 
-                createLoading.setVisible(false);
-                feedback.setText("Dados preenchidos. Entrada na mesa ainda não conectada.");
+        String nome = nameField.getText().trim();
+        String codigo = codeField.getText().trim();
+        int tentativa = ++tentativaSala;
+
+        startTableLoading("ENTRANDO NA MESA...", "Aguarde enquanto conectamos você à mesa.");
+
+        clienteJogo.entrarSala(codigo, nome, resposta -> {
+            if (!telaAtiva || tentativa != tentativaSala) {
+                return;
             }
-        );
+
+            createLoading.setVisible(false);
+            onSalaConectada.conectou(resposta.getCodigoSala(), resposta.getTokenJogador(), nome, false
+            );
+        }, erro -> {
+            if (!telaAtiva || tentativa != tentativaSala) {
+                return;
+            }
+
+            showTableError("NÃO FOI POSSÍVEL ENTRAR", mensagemErro(erro), this::startJoiningTable);
+        });
+    }
+
+    private String mensagemErro(Throwable erro) {
+        Status status = Status.fromThrowable(erro);
+
+        switch (status.getCode()) {
+            case UNAVAILABLE:
+                return "Não conseguimos acessar o servidor.\nConfira a conexão e tente novamente.";
+
+            case DEADLINE_EXCEEDED:
+                return "O servidor demorou a responder.\nTente novamente.";
+
+            case INVALID_ARGUMENT:
+            case FAILED_PRECONDITION:
+                return status.getDescription() != null ? status.getDescription() : "Confira os dados informados.";
+
+            default:
+                return "Não foi possível concluir a solicitação.\nTente novamente.";
+        }
     }
 
     private void showTableError(String title, String message, Runnable onRetry) {
@@ -303,6 +368,7 @@ public class PairingScreen extends ScreenAdapter {
         tableErrorMessage.setAlignment(Align.center);
         place(tableErrorMessage, 684f, 496.5f, 552f, 64f);
         tableErrorDialog.addActor(tableErrorMessage);
+        tableErrorMessage.setWrap(true);
 
         addCreateErrorButton("VOLTAR", 684f, cream, green, () -> tableErrorDialog.setVisible(false));
 
@@ -336,7 +402,7 @@ public class PairingScreen extends ScreenAdapter {
         tableErrorDialog.addActor(button);
     }
 
-    private void startTableLoading(String title, String message, Runnable onComplete) {
+    private void startTableLoading(String title, String message) {
         loadingTitle.setText(title);
         loadingMessage.setText(message);
         feedback.setText("");
@@ -357,11 +423,6 @@ public class PairingScreen extends ScreenAdapter {
                 Actions.moveBy(0f, -12f, 0.15f)
             ));
         }
-
-        createLoading.addAction(Actions.sequence(
-            Actions.delay(1.2f),
-            Actions.run(onComplete)
-        ));
     }
 
     private void buildCreateLoading() {
@@ -613,6 +674,7 @@ public class PairingScreen extends ScreenAdapter {
 
     @Override
     public void show() {
+        telaAtiva = true;
         Gdx.input.setInputProcessor(stage);
         Gdx.input.setCatchKey(Input.Keys.BACK, true);
     }
@@ -646,6 +708,8 @@ public class PairingScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        telaAtiva = false;
+        tentativaSala++;
         createLoading.clearActions();
         createLoading.setVisible(false);
 

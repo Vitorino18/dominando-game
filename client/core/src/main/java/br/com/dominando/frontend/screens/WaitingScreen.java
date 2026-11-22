@@ -61,9 +61,9 @@ public class WaitingScreen extends ScreenAdapter {
     private final Image rightTexture;
     private final Image divider;
 
-    public WaitingScreen(String roomCode, Runnable onCancel, Runnable onSimulateArrival){
-        if (roomCode == null || roomCode.length() != 4) {
-            throw new IllegalArgumentException("Espera-se um código de 4 caracteres");
+    public WaitingScreen(String roomCode, Runnable onCancel){
+        if (roomCode == null || roomCode.length() != 6) {
+            throw new IllegalArgumentException("Espera-se um código de 6 caracteres");
         }
 
         this.roomCode = roomCode;
@@ -71,7 +71,7 @@ public class WaitingScreen extends ScreenAdapter {
         stage = new Stage(viewport);
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
-        codeFont = createFont("fonts/NunitoSans-ExtraBold.ttf", 72);
+        codeFont = createFont("fonts/NunitoSans-ExtraBold.ttf", 64);
         inviteFont = createFont("fonts/NunitoSans-SemiBold.ttf", 22);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 36);
 
@@ -90,17 +90,17 @@ public class WaitingScreen extends ScreenAdapter {
         addImage(loadTexture("ui/waiting/titulo-mesa-criada.png"), 1160f, 48f, 561f, 187f);
         addLabel("ENVIE ESSE CÓDIGO PARA QUEM VAI JOGAR COM VOCÊ", inviteFont, new Color(cream.r, cream.g, cream.b, 0.8f), 1130f, 280f, 620f, 30f);
 
-        TextureRegionDrawable codeBackground = roundedBackground(128, 160, 18, 5, cream, 4);
+        TextureRegionDrawable codeBackground = roundedBackground(104, 160, 18, 5, cream, 4);
 
-        for (int i = 0; i < 4; i++) {
-            float x = 1148f + i * 152f;
+        for (int i = 0; i < 6; i++) {
+            float x = 1088f + i * 120f;
 
             Image box = new Image(codeBackground);
             box.setTouchable(Touchable.disabled);
-            place(box, x, 346f, 128f, 164f);
+            place(box, x, 346f, 104f, 164f);
             stage.addActor(box);
 
-            addLabel(String.valueOf(roomCode.charAt(i)), codeFont, green, x, 346f, 128f, 160f);
+            addLabel(String.valueOf(roomCode.charAt(i)), codeFont, green, x, 346f, 104f, 160f);
         }
 
         TextButton.TextButtonStyle copyStyle = new TextButton.TextButtonStyle();
@@ -133,12 +133,10 @@ public class WaitingScreen extends ScreenAdapter {
         cancelStyle.fontColor = new Color(cream.r, cream.g, cream.b, 0.85f);
         cancelStyle.downFontColor = Color.WHITE;
 
-        TextButton cancelButton = new TextButton("CANCELAR MESA", cancelStyle);
+        TextButton cancelButton = new TextButton("VOLTAR", cancelStyle);
 
         place(cancelButton, 1290f, 878f, 300f, 72f);
         stage.addActor(cancelButton);
-
-        addLabel("SIMULAÇÃO LOCAL — nenhuma mesa criada no servidor", labelFont, cream, 1050f, 1000f, 780f, 32f);
 
         copyButton.addListener(new ChangeListener() {
             @Override
@@ -153,27 +151,6 @@ public class WaitingScreen extends ScreenAdapter {
             public void changed(ChangeEvent event, Actor actor) {
                 playClickSound();
                 onCancel.run();
-            }
-        });
-
-        TextButton.TextButtonStyle simulateStyle = new TextButton.TextButtonStyle();
-
-        simulateStyle.font = labelFont;
-        simulateStyle.fontColor = brown;
-        simulateStyle.up = roundedBackground(420, 72, 18, 4, cream, 6);
-        simulateStyle.down = roundedBackground(420,72,18,4, Color.valueOf("DCC79C"), 6 );
-
-        TextButton simulateButton = new TextButton("SIMULAR CHEGADA", simulateStyle);
-        simulateButton.padBottom(6f);
-        place(simulateButton, 270f, 920f, 420f, 78f);
-        stage.addActor(simulateButton);
-
-        simulateButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                playClickSound();
-                Gdx.app.log("WaitingScreen", "Simular chegada clicado");
-                onSimulateArrival.run();
             }
         });
     }

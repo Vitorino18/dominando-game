@@ -1,9 +1,17 @@
+apply plugin: 'com.google.protobuf'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 eclipse.project.name = appName + '-core'
 
 dependencies {
   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
+  api "io.grpc:grpc-protobuf-lite:$grpcVersion"
+  api "io.grpc:grpc-stub:$grpcVersion"
+  api "com.google.protobuf:protobuf-javalite:$protobufVersion"
+
+  implementation "io.grpc:grpc-okhttp:$grpcVersion"
+
+  compileOnly "javax.annotation:javax.annotation-api:1.3.2"
 
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
@@ -12,4 +20,40 @@ dependencies {
 
 jar {
   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+sourceSets {
+  main {
+    proto {
+      srcDirs = [rootProject.file('../src/main/proto')]
+    }
+  }
+}
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:$protobufVersion"
+  }
+
+  plugins {
+    grpc {
+      artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
+    }
+  }
+
+  generateProtoTasks {
+    all().configureEach { task ->
+      task.builtins {
+        java {
+          option 'lite'
+        }
+      }
+
+      task.plugins {
+        grpc {
+          option 'lite'
+        }
+      }
+    }
+  }
 }

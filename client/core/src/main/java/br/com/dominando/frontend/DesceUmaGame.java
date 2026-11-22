@@ -16,6 +16,8 @@ import br.com.dominando.frontend.screens.MatchScreen;
 
 import br.com.dominando.frontend.audio.GameAudio;
 
+import br.com.dominando.frontend.network.ClienteJogo;
+
 
 public class DesceUmaGame extends Game {
 
@@ -30,10 +32,17 @@ public class DesceUmaGame extends Game {
     private Sound uiClickSound;
     private boolean menuMusicStarted;
 
+    private ClienteJogo clienteJogo;
+    private String codigoSala;
+    private String tokenJogador;
+    private String nomeJogador;
+    private boolean criadorSala;
+
     @Override
     public void create() {
         gameSettings = new GameSettings();
         GameAudio.init(gameSettings);
+        clienteJogo = new ClienteJogo("192.168.100.57", 50051);
         uiClickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         menuMusic = Gdx.audio.newMusic(Gdx.files.internal("audio/samba-menu-loop.ogg"));
         menuMusic.setLooping(true);
@@ -43,16 +52,28 @@ public class DesceUmaGame extends Game {
 
     private void showPairing() {
         if (pairingScreen == null) {
-            pairingScreen = new PairingScreen(() -> Gdx.app.postRunnable(this::showOpening), () -> Gdx.app.postRunnable(this::showWaitingDemo));
+            pairingScreen = new PairingScreen(() -> Gdx.app.postRunnable(this::showOpening), clienteJogo, this::showWaiting);
         }
+
         setScreen(pairingScreen);
     }
 
-    private void showWaitingDemo() {
-        if (waitingScreen == null) {
-            waitingScreen = new WaitingScreen("51A7", () -> Gdx.app.postRunnable(this::showPairing), () -> Gdx.app.postRunnable(this::showMatchIntroDemo));
-        }
+    private void showWaiting(String codigo, String token, String nome, boolean criador
+    ) {
+        codigoSala = codigo;
+        tokenJogador = token;
+        nomeJogador = nome;
+        criadorSala = criador;
+
+        WaitingScreen previousWaiting = waitingScreen;
+
+        waitingScreen = new WaitingScreen(codigoSala, () -> Gdx.app.postRunnable(this::showPairing));
+
         setScreen(waitingScreen);
+
+        if (previousWaiting != null) {
+            previousWaiting.dispose();
+        }
     }
 
     private void showOpening() {
@@ -160,6 +181,11 @@ public class DesceUmaGame extends Game {
     @Override
     public void dispose() {
         setScreen(null);
+
+        if (clienteJogo != null) {
+            clienteJogo.dispose();
+        }
+
         menuMusic.dispose();
         GameAudio.dispose(uiClickSound);
 
