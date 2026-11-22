@@ -63,12 +63,17 @@ public class WaitingScreen extends ScreenAdapter {
 
     private final Label statusLabel;
 
-    public WaitingScreen(String roomCode, boolean criador, Runnable onCancel){
+    private final boolean criador;
+    private final TextButton startButton;
+    private final TextButton cancelButton;
+
+    public WaitingScreen(String roomCode, boolean criador, Runnable onCancel, Runnable onStart){
         if (roomCode == null || roomCode.length() != 6) {
             throw new IllegalArgumentException("Espera-se um código de 6 caracteres");
         }
 
         this.roomCode = roomCode;
+        this.criador = criador;
         clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         stage = new Stage(viewport);
 
@@ -144,13 +149,45 @@ public class WaitingScreen extends ScreenAdapter {
         );
         statusLabel.setWrap(true);
 
+        TextButton.TextButtonStyle startStyle = new TextButton.TextButtonStyle();
+
+        startStyle.font = buttonFont;
+        startStyle.fontColor = brown;
+        startStyle.disabledFontColor = brown;
+
+        TextureRegionDrawable startBackground = roundedBackground(500, 72, 18, 5, Color.valueOf("F0B639"), 8);
+
+        startStyle.up = startBackground;
+        startStyle.disabled = startBackground.tint(new Color(1f, 1f, 1f, 0.5f));
+        startStyle.down = roundedBackground(500, 72, 18, 5, Color.valueOf("DDA52E"), 8);
+        startStyle.pressedOffsetY = -2f;
+
+        startButton = new TextButton("INICIAR PARTIDA", startStyle);
+        startButton.padBottom(8f);
+        place(startButton, 1190f, 700f, 500f, 80f);
+        startButton.setDisabled(true);
+        startButton.setVisible(false);
+        stage.addActor(startButton);
+
+        startButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (startButton.isDisabled()) {
+                    return;
+                }
+
+                playClickSound();
+                onStart.run();
+            }
+        });
+
         TextButton.TextButtonStyle cancelStyle = new TextButton.TextButtonStyle();
 
         cancelStyle.font = labelFont;
         cancelStyle.fontColor = new Color(cream.r, cream.g, cream.b, 0.85f);
         cancelStyle.downFontColor = Color.WHITE;
 
-        TextButton cancelButton = new TextButton("VOLTAR", cancelStyle);
+        cancelButton = new TextButton("VOLTAR", cancelStyle);
 
         place(cancelButton, 1290f, 878f, 300f, 72f);
         stage.addActor(cancelButton);
@@ -174,6 +211,20 @@ public class WaitingScreen extends ScreenAdapter {
 
     public void atualizarStatus(String mensagem) {
         statusLabel.setText(mensagem);
+    }
+
+    public void atualizarInicio(boolean podeIniciar, boolean iniciando) {
+        boolean mostrarBotao = criador && (podeIniciar || iniciando);
+
+        startButton.setVisible(mostrarBotao);
+        startButton.setDisabled(!podeIniciar || iniciando);
+        startButton.setText(iniciando ? "INICIANDO..." : "INICIAR PARTIDA");
+
+        cancelButton.setDisabled(iniciando);
+
+        for (Image cap : caps) {
+            cap.setVisible(!mostrarBotao);
+        }
     }
 
     private void playClickSound() {

@@ -44,6 +44,10 @@ public class DesceUmaGame extends Game {
     private boolean consultaSalaEmAndamento;
     private boolean consultaSalaSuspensa;
 
+    private boolean salaPodeIniciar;
+    private boolean iniciandoPartida;
+    private boolean partidaIniciada;
+
     @Override
     public void create() {
         gameSettings = new GameSettings();
@@ -64,6 +68,68 @@ public class DesceUmaGame extends Game {
         setScreen(pairingScreen);
     }
 
+    private void iniciarPartida() {
+        if (!criadorSala
+            || !salaPodeIniciar
+            || iniciandoPartida
+            || partidaIniciada
+            || getScreen() != waitingScreen) {
+            return;
+        }
+
+        iniciandoPartida = true;
+        salaPodeIniciar = false;
+
+        WaitingScreen telaSolicitante = waitingScreen;
+
+        telaSolicitante.atualizarInicio(false, true);
+        telaSolicitante.atualizarStatus(
+            "Solicitando início da partida..."
+        );
+
+        clienteJogo.iniciarPartida(
+            codigoSala,
+            tokenJogador,
+            resposta -> {
+                if (getScreen() != telaSolicitante
+                    || waitingScreen != telaSolicitante) {
+                    return;
+                }
+
+                iniciandoPartida = false;
+                partidaIniciada =
+                    partidaIniciada || resposta.getIniciada();
+
+                tempoConsultaSala = 0f;
+                telaSolicitante.atualizarInicio(false, false);
+
+                telaSolicitante.atualizarStatus(
+                    partidaIniciada
+                        ? "Partida iniciada no servidor."
+                        : "Início não confirmado.\nConsultando o servidor..."
+                );
+            },
+            erro -> {
+                if (getScreen() != telaSolicitante
+                    || waitingScreen != telaSolicitante) {
+                    return;
+                }
+
+                iniciandoPartida = false;
+                tempoConsultaSala = 0f;
+
+                telaSolicitante.atualizarInicio(false, false);
+
+                if (!partidaIniciada) {
+                    telaSolicitante.atualizarStatus(
+                        "Não foi possível confirmar o início.\n"
+                            + "Consultando o servidor..."
+                    );
+                }
+            }
+        );
+    }
+
     private void showWaiting(String codigo, String token, String nome, boolean criador
     ) {
         codigoSala = codigo;
@@ -73,10 +139,13 @@ public class DesceUmaGame extends Game {
         tempoConsultaSala = 0f;
         consultaSalaEmAndamento = false;
         consultaSalaSuspensa = false;
+        salaPodeIniciar = false;
+        iniciandoPartida = false;
+        partidaIniciada = false;
 
         WaitingScreen previousWaiting = waitingScreen;
 
-        waitingScreen = new WaitingScreen(codigoSala, criadorSala, () -> Gdx.app.postRunnable(this::showPairing));
+        waitingScreen = new WaitingScreen(codigoSala, criadorSala, () -> Gdx.app.postRunnable(this::showPairing), this::iniciarPartida);
 
         setScreen(waitingScreen);
 
@@ -111,8 +180,22 @@ public class DesceUmaGame extends Game {
                 consultaSalaEmAndamento = false;
                 tempoConsultaSala = 1f;
 
-                if (resposta.getIniciada()) {
+                partidaIniciada = partidaIniciada || resposta.getIniciada();
+                salaPodeIniciar = resposta.getPodeIniciar() && !partidaIniciada;
+
+                if (partidaIniciada) {
+                    iniciandoPartida = false;
+                }
+
+                telaConsultada.atualizarInicio(
+                    salaPodeIniciar,
+                    iniciandoPartida
+                );
+
+                if (partidaIniciada) {
                     telaConsultada.atualizarStatus("Partida iniciada no servidor.");
+                } else if (iniciandoPartida) {
+                    telaConsultada.atualizarStatus("Solicitando início da partida...");
                 } else if (resposta.getNomesJogadoresCount() == 2) {
                     telaConsultada.atualizarStatus(criadorSala ? "Adversário conectado. Mesa pronta!" : "Conectados! Aguardando o criador.");
                 } else {
@@ -126,6 +209,9 @@ public class DesceUmaGame extends Game {
 
                 consultaSalaEmAndamento = false;
                 Status.Code codigo = Status.fromThrowable(erro).getCode();
+
+                salaPodeIniciar = false;
+                telaConsultada.atualizarInicio(false, iniciandoPartida);
 
                 if (codigo == Status.Code.UNAVAILABLE || codigo == Status.Code.DEADLINE_EXCEEDED) {
                     tempoConsultaSala = 3f;
