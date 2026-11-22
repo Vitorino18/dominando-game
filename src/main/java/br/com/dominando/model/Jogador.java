@@ -9,12 +9,17 @@ public class Jogador {
     private int pontuacao;
     private int erros;
     private final List<Peca> mao;
+    private int vitorias;
+    private int pontosPetiscos;
 
     public Jogador(String nome){
         this.nome = nome;
         this.pontuacao = 0;
         this.erros = 0;
         this.mao = new ArrayList<>();
+
+        this.vitorias = 0;
+        this.pontosPetiscos = 0;
     }
 
     public boolean removerPeca(Peca peca){
@@ -51,6 +56,15 @@ public class Jogador {
         erros++;
     }
 
+    public void registrarVitoria() {
+        vitorias++;
+        pontosPetiscos += 10;
+    }
+
+    public void limparMao() {
+        mao.clear();
+    }
+
     // gets //
     public String getNome() {
         return nome;
@@ -70,6 +84,13 @@ public class Jogador {
             return null;
         }
         return mao.get(indicePeca);
+    }
+
+    public int getPontosPetiscos() {
+        return pontosPetiscos;
+    }
+    public int getVitorias() {
+        return vitorias;
     }
 
     @Override
