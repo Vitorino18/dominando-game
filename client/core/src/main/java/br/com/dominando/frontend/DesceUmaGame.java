@@ -4,6 +4,8 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Sound;
+
 import br.com.dominando.frontend.settings.GameSettings;
 
 import br.com.dominando.frontend.screens.OpeningScreen;
@@ -11,6 +13,7 @@ import br.com.dominando.frontend.screens.PairingScreen;
 import br.com.dominando.frontend.screens.WaitingScreen;
 import br.com.dominando.frontend.screens.MatchIntroScreen;
 import br.com.dominando.frontend.screens.MatchScreen;
+
 
 public class DesceUmaGame extends Game {
 
@@ -22,11 +25,13 @@ public class DesceUmaGame extends Game {
 
     private GameSettings gameSettings;
     private Music menuMusic;
+    private Sound uiClickSound;
     private boolean menuMusicStarted;
 
     @Override
     public void create() {
         gameSettings = new GameSettings();
+        uiClickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         menuMusic = Gdx.audio.newMusic(Gdx.files.internal("audio/samba-menu-loop.ogg"));
         menuMusic.setLooping(true);
         openingScreen = new OpeningScreen(() -> Gdx.app.postRunnable(this::showPairing));
@@ -52,17 +57,24 @@ public class DesceUmaGame extends Game {
     }
 
     private void showMatchIntroDemo() {
-       if (matchScreen == null) {
-           matchScreen = new MatchScreen(() -> Gdx.app.postRunnable(this::leaveMatch));
-       }
+        if (matchScreen == null) {
+            matchScreen = new MatchScreen(() -> Gdx.app.postRunnable(this::leaveMatch), this::playUiClickSound);
+        }
 
-       if (matchIntroScreen == null) {
-           matchIntroScreen = new MatchIntroScreen(gameSettings, () -> Gdx.app.postRunnable(this::showMatchDemo));
-       }
-       setScreen(matchIntroScreen);
+        if (matchIntroScreen == null) {
+            matchIntroScreen = new MatchIntroScreen(gameSettings, () -> Gdx.app.postRunnable(this::showMatchDemo));
+        }
+
+        setScreen(matchIntroScreen);
     }
     private void showMatchDemo() {
         setScreen(matchScreen);
+    }
+
+    private void playUiClickSound() {
+        if (audioInForeground && gameSettings.isSoundEffectsEnabled()) {
+            uiClickSound.play(1f);
+        }
     }
 
     private void leaveMatch() {
@@ -70,6 +82,7 @@ public class DesceUmaGame extends Game {
             return;
         }
 
+        playUiClickSound();
         MatchScreen previousMatch = matchScreen;
         showPairing();
         matchScreen = null;
@@ -131,6 +144,7 @@ public class DesceUmaGame extends Game {
     public void dispose() {
         setScreen(null);
         menuMusic.dispose();
+        uiClickSound.dispose();
 
         if (matchIntroScreen != null) {
             matchIntroScreen.dispose();

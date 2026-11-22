@@ -57,7 +57,10 @@ public final class RoundResultView extends Group implements Disposable {
     private final Image closedRoundDimmer;
     private final FinalReceipt finalReceipt;
 
-    public RoundResultView(Runnable onReturnToStart, Runnable onPlayAgain) {
+    private final Runnable onUiClick;
+
+    public RoundResultView(Runnable onReturnToStart, Runnable onPlayAgain, Runnable onUiClick) {
+        this.onUiClick = onUiClick;
         setSize(1920f, 1080f);
         setTouchable(Touchable.disabled);
         setVisible(false);
@@ -366,7 +369,10 @@ public final class RoundResultView extends Group implements Disposable {
 
             returnToStartButton = createFinalButton("VOLTAR AO INÍCIO", 244f, CREAM, GREEN, onReturnToStart);
             addActor(returnToStartButton);
+
             playAgainButton = createFinalButton("JOGAR DE NOVO", 136f, Color.valueOf("F0B639"), BROWN, () -> {
+                    onUiClick.run();
+
                     if (acceptRematch != null) {
                         acceptRematch.run();
                     } else {
@@ -374,6 +380,7 @@ public final class RoundResultView extends Group implements Disposable {
                     }
                 }
             );
+
             addActor(playAgainButton);
 
             loadingCaps.setTouchable(Touchable.disabled);

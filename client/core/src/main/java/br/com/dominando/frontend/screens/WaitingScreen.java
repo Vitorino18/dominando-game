@@ -159,6 +159,7 @@ public class WaitingScreen extends ScreenAdapter {
         simulateButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
                 Gdx.app.log("WaitingScreen", "Simular chegada clicado");
                 onSimulateArrival.run();
             }

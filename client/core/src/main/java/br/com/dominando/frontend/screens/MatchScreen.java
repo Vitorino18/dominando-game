@@ -158,9 +158,12 @@ public class MatchScreen extends ScreenAdapter {
     private final Sound roundVictorySound;
     private final Sound coinRewardSound;
     private final Sound snackPurchaseSound;
+    private final Runnable onUiClick;
 
 
-    public MatchScreen(Runnable onLeaveMatch) {
+    public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
+        this.onUiClick = onUiClick;
+
         barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
         dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
@@ -295,6 +298,7 @@ public class MatchScreen extends ScreenAdapter {
         settingsButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                onUiClick.run();
                 matchSettings.open(stage);
             }
         });
@@ -317,11 +321,12 @@ public class MatchScreen extends ScreenAdapter {
 
         roundResultView = new RoundResultView(
             () -> closeFinalResult(() -> Gdx.app.postRunnable(onLeaveMatch)),
-            this::startRematchWaiting
+            this::startRematchWaiting,
+            onUiClick
         );
         hudLayer.addActor(roundResultView);
 
-        intervalView = new IntervalView();
+        intervalView = new IntervalView(onUiClick);
         hudLayer.addActor(intervalView);
 
         Pixmap pixel = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -881,6 +886,7 @@ public class MatchScreen extends ScreenAdapter {
 
     private void useSnack() {
         if (canUseEgg()) {
+            onUiClick.run();
             useEgg();
             return;
         }
@@ -893,6 +899,7 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
+        onUiClick.run();
         selectStone(null);
         refreshTurn();
     }

@@ -93,6 +93,7 @@ public final class IntervalView extends Group implements Disposable {
     private boolean refuseNextOrder;
     private float responseTime;
     private boolean boughtThisInterval;
+    private final Runnable onUiClick;
 
     private BitmapFont createFont(String file, int size) {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
@@ -109,7 +110,8 @@ public final class IntervalView extends Group implements Disposable {
         }
     }
 
-    public IntervalView() {
+    public IntervalView(Runnable onUiClick) {
+        this.onUiClick = onUiClick;
         setSize(1920f, 1080f);
         setVisible(false);
         setTouchable(Touchable.enabled);
@@ -175,7 +177,10 @@ public final class IntervalView extends Group implements Disposable {
         closeOrder = panelLabel(font, Align.center, 530f, 740f, 44f, 44f);
         closeOrder.setText("×");
         closeOrder.setTouchable(Touchable.enabled);
-        onClick(closeOrder, this::closeOrderPanel);
+        onClick(closeOrder, () -> {
+            onUiClick.run();
+            closeOrderPanel();
+        });
 
         TextureRegionDrawable enabled = new TextureRegionDrawable(
             new TextureRegion(load("botao-compra.png"))
@@ -230,6 +235,7 @@ public final class IntervalView extends Group implements Disposable {
                 return;
             }
 
+            onUiClick.run();
             selectedSnack = snack;
             orderState = OrderState.DETAIL;
             refreshOrder();
@@ -336,13 +342,16 @@ public final class IntervalView extends Group implements Disposable {
     }
 
     private void handleOrderButton() {
-        if (isTimeUp() || isReconnecting() || orderButton.isDisabled() || boughtThisInterval) {
+        if (isTimeUp() || isReconnecting()
+            || orderButton.isDisabled() || boughtThisInterval) {
             return;
         }
 
         if (orderState == OrderState.REFUSED) {
+            onUiClick.run();
             closeOrderPanel();
         } else if (orderState == OrderState.DETAIL) {
+            onUiClick.run();
             orderState = OrderState.SENDING;
             responseTime = 0.6f;
             refreshOrder();
