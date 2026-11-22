@@ -1,5 +1,8 @@
 package br.com.dominando.frontend.ui;
 
+import br.com.dominando.frontend.audio.GameAudio;
+import com.badlogic.gdx.audio.Sound;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
@@ -56,6 +59,9 @@ public final class RoundResultView extends Group implements Disposable {
     private final Label coinRewardLabel;
     private final Image closedRoundDimmer;
     private final FinalReceipt finalReceipt;
+    private final Sound matchVictorySound = GameAudio.newSound(
+        Gdx.files.internal("audio/vitoria-partida-garrafa.wav")
+    );
 
     private final Runnable onUiClick;
 
@@ -253,6 +259,9 @@ public final class RoundResultView extends Group implements Disposable {
         closedRoundDimmer.setVisible(true);
         description.setVisible(false);
         finalReceipt.show(humanWon, human, opponent);
+        if (humanWon) {
+            GameAudio.play(matchVictorySound, 0.85f);
+        }
         setTouchable(Touchable.enabled);
         reveal();
     }
@@ -699,6 +708,7 @@ public final class RoundResultView extends Group implements Disposable {
 
     @Override
     public void dispose() {
+        GameAudio.dispose(matchVictorySound);
         for (Texture texture : textures) {
             texture.dispose();
         }

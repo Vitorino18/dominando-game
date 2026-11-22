@@ -1,6 +1,5 @@
 package br.com.dominando.frontend.ui;
 
-import br.com.dominando.frontend.settings.GameSettings;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -25,6 +24,10 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.audio.Sound;
 
+import br.com.dominando.frontend.settings.GameSettings;
+
+import br.com.dominando.frontend.audio.GameAudio;
+
 public class OpeningDialogs implements Disposable {
     private static final float WIDTH = 1920f;
     private static final float HEIGHT = 1080f;
@@ -48,6 +51,8 @@ public class OpeningDialogs implements Disposable {
     private final Slider musicVolumeSlider;
     private final Label musicVolumePercent;
     private final Sound clickSound;
+    private final Slider effectsVolumeSlider;
+    private final Label effectsVolumePercent;
 
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry) {
@@ -56,8 +61,8 @@ public class OpeningDialogs implements Disposable {
 
     public OpeningDialogs(GameSettings settings, Runnable onRetry, Runnable onLeaveMatch) {
         this.settings = settings;
-        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
-        float extraHeight = 60f + (onLeaveMatch == null ? 0f : 96f);
+        clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
+        float extraHeight = 120f + (onLeaveMatch == null ? 0f : 96f);
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
@@ -131,6 +136,28 @@ public class OpeningDialogs implements Disposable {
         });
 
         addOption(content, "Efeitos Sonoros", effectsButton);
+
+        effectsVolumeSlider = new Slider(0f, 100f, 5f, false, volumeStyle);
+        effectsVolumePercent = new Label("", new Label.LabelStyle(labelFont, brown));
+        effectsVolumePercent.setAlignment(Align.right);
+
+        Table effectsVolumeRow = new Table();
+        effectsVolumeRow.add(new Label("Volume dos efeitos", new Label.LabelStyle(labelFont, brown)))
+            .expandX().left();
+        effectsVolumeRow.add(effectsVolumeSlider).width(210f).height(48f);
+        effectsVolumeRow.add(effectsVolumePercent).width(72f).padLeft(16f);
+        content.add(effectsVolumeRow).colspan(2).width(552f).height(48f).padBottom(12f);
+        content.row();
+
+        effectsVolumeSlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                int volume = Math.round(effectsVolumeSlider.getValue());
+                settings.setSoundEffectsVolume(volume);
+                effectsVolumePercent.setText(volume + "%");
+            }
+        });
+
         addOption(content, "Vibração", vibrationButton);
 
         TextButton.TextButtonStyle backStyle = new TextButton.TextButtonStyle();
@@ -203,7 +230,7 @@ public class OpeningDialogs implements Disposable {
 
     private void playClickSound() {
         if (settings.isSoundEffectsEnabled()) {
-            clickSound.play(1f);
+            GameAudio.play(clickSound, 1f);
         }
     }
 
@@ -306,6 +333,9 @@ public class OpeningDialogs implements Disposable {
         musicVolumeSlider.setValue(volume);
         musicVolumePercent.setText(volume + "%");
         effectsButton.setChecked(settings.isSoundEffectsEnabled());
+        int effectsVolume = settings.getSoundEffectsVolume();
+        effectsVolumeSlider.setValue(effectsVolume);
+        effectsVolumePercent.setText(effectsVolume + "%");
         vibrationButton.setChecked(settings.isVibrationEnabled());
         stage.addActor(overlay);
         overlay.toFront();
@@ -423,7 +453,7 @@ public class OpeningDialogs implements Disposable {
     @Override
     public void dispose() {
         close();
-        clickSound.dispose();
+        GameAudio.dispose(clickSound);
 
         titleFont.dispose();
         labelFont.dispose();

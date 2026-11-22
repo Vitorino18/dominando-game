@@ -25,7 +25,8 @@ import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
 
-import java.awt.*;
+import br.com.dominando.frontend.audio.GameAudio;
+
 
 public class WaitingScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -58,7 +59,7 @@ public class WaitingScreen extends ScreenAdapter {
         }
 
         this.roomCode = roomCode;
-        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
+        clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 22);
@@ -168,7 +169,7 @@ public class WaitingScreen extends ScreenAdapter {
 
     private void playClickSound() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            clickSound.play(1f);
+            GameAudio.play(clickSound, 1f);
         }
     }
 
@@ -340,7 +341,7 @@ public class WaitingScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
-        clickSound.dispose();
+        GameAudio.dispose(clickSound);
         stage.dispose();
         labelFont.dispose();
         codeFont.dispose();

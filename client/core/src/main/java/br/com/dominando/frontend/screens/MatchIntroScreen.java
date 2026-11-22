@@ -26,6 +26,8 @@ import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
 
+import br.com.dominando.frontend.audio.GameAudio;
+
 public class MatchIntroScreen extends ScreenAdapter {
 
     private static final float WIDTH = 1920f;
@@ -59,7 +61,7 @@ public class MatchIntroScreen extends ScreenAdapter {
     public MatchIntroScreen(GameSettings gameSettings, Runnable onFinished) {
         this.gameSettings = gameSettings;
         this.onFinished = onFinished;
-        toastSound = Gdx.audio.newSound(Gdx.files.internal("audio/brinde.wav"));
+        toastSound = GameAudio.newSound(Gdx.files.internal("audio/brinde.wav"));
 
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
@@ -253,7 +255,7 @@ public class MatchIntroScreen extends ScreenAdapter {
 
         if (previousElapsed < TOAST_TIME && elapsed >= TOAST_TIME
             && gameSettings.isSoundEffectsEnabled()) {
-            toastSound.play(0.65f);
+            GameAudio.play(toastSound, 0.65f);
         }
 
         if (!finished && elapsed >= 3.55f) {
@@ -277,7 +279,7 @@ public class MatchIntroScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
-        toastSound.dispose();
+        GameAudio.dispose(toastSound);
         stage.dispose();
 
         titleFont.dispose();

@@ -31,6 +31,8 @@ import com.badlogic.gdx.audio.Sound;
 
 import br.com.dominando.frontend.settings.GameSettings;
 
+import br.com.dominando.frontend.audio.GameAudio;
+
 public class PairingScreen extends ScreenAdapter {
 
     private static final float WIDTH = 1920f;
@@ -83,7 +85,7 @@ public class PairingScreen extends ScreenAdapter {
     private final Sound clickSound;
 
     public PairingScreen(Runnable onBack, Runnable onCreate) {
-        clickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
+        clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
 
         stage = new Stage(new FitViewport(WIDTH, HEIGHT));
 
@@ -219,7 +221,7 @@ public class PairingScreen extends ScreenAdapter {
 
     private void playClickSound() {
         if (gameSettings.isSoundEffectsEnabled()) {
-            clickSound.play(1f);
+            GameAudio.play(clickSound, 1f);
         }
     }
 
@@ -627,7 +629,7 @@ public class PairingScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         hide();
-        clickSound.dispose();
+        GameAudio.dispose(clickSound);
         stage.dispose();
 
         labelFont.dispose();

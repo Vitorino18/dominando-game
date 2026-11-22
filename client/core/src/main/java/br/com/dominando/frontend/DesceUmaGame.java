@@ -14,6 +14,8 @@ import br.com.dominando.frontend.screens.WaitingScreen;
 import br.com.dominando.frontend.screens.MatchIntroScreen;
 import br.com.dominando.frontend.screens.MatchScreen;
 
+import br.com.dominando.frontend.audio.GameAudio;
+
 
 public class DesceUmaGame extends Game {
 
@@ -31,7 +33,8 @@ public class DesceUmaGame extends Game {
     @Override
     public void create() {
         gameSettings = new GameSettings();
-        uiClickSound = Gdx.audio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
+        GameAudio.init(gameSettings);
+        uiClickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
         menuMusic = Gdx.audio.newMusic(Gdx.files.internal("audio/samba-menu-loop.ogg"));
         menuMusic.setLooping(true);
         openingScreen = new OpeningScreen(() -> Gdx.app.postRunnable(this::showPairing));
@@ -73,7 +76,7 @@ public class DesceUmaGame extends Game {
 
     private void playUiClickSound() {
         if (audioInForeground && gameSettings.isSoundEffectsEnabled()) {
-            uiClickSound.play(1f);
+            GameAudio.play(uiClickSound, 1f);
         }
     }
 
@@ -93,16 +96,30 @@ public class DesceUmaGame extends Game {
     public void render() {
         super.render();
         updateMenuMusic();
+        GameAudio.update();
     }
 
     private boolean audioInForeground = true;
 
     public void setAudioInForeground(boolean foreground) {
         audioInForeground = foreground;
+        GameAudio.setForeground(foreground);
 
         if (!foreground && menuMusic != null && menuMusic.isPlaying()) {
             menuMusic.pause();
         }
+    }
+
+    @Override
+    public void pause() {
+        setAudioInForeground(false);
+        super.pause();
+    }
+
+    @Override
+    public void resume() {
+        super.resume();
+        setAudioInForeground(true);
     }
 
     private void updateMenuMusic() {
@@ -144,7 +161,7 @@ public class DesceUmaGame extends Game {
     public void dispose() {
         setScreen(null);
         menuMusic.dispose();
-        uiClickSound.dispose();
+        GameAudio.dispose(uiClickSound);
 
         if (matchIntroScreen != null) {
             matchIntroScreen.dispose();
@@ -165,5 +182,7 @@ public class DesceUmaGame extends Game {
         if (matchScreen != null) {
             matchScreen.dispose();
         }
+
+        GameAudio.dispose();
     }
 }

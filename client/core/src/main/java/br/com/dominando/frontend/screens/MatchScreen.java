@@ -47,6 +47,7 @@ import br.com.dominando.frontend.ui.RoundResultView.MatchEndReason;
 import br.com.dominando.frontend.ui.IntervalView;
 import br.com.dominando.frontend.ui.SnackActionView;
 import br.com.dominando.frontend.ui.IntervalView.Snack;
+import br.com.dominando.frontend.audio.GameAudio;
 
 
 import java.util.ArrayList;
@@ -165,13 +166,13 @@ public class MatchScreen extends ScreenAdapter {
         this.onUiClick = onUiClick;
 
         barAmbience = Gdx.audio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
-        shuffleSound = Gdx.audio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
-        dealSound = Gdx.audio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
-        drawSound = Gdx.audio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
-        passTapSound = Gdx.audio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
-        roundVictorySound = Gdx.audio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
-        coinRewardSound = Gdx.audio.newSound(Gdx.files.internal("audio/moedas-recompensa.wav"));
-        snackPurchaseSound = Gdx.audio.newSound(Gdx.files.internal("audio/compra-petisco.wav"));
+        shuffleSound = GameAudio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
+        dealSound = GameAudio.newSound(Gdx.files.internal("audio/distribuir-domino.mp3"));
+        drawSound = GameAudio.newSound(Gdx.files.internal("audio/cavar-domino.mp3"));
+        passTapSound = GameAudio.newSound(Gdx.files.internal("audio/batida-mesa.mp3"));
+        roundVictorySound = GameAudio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
+        coinRewardSound = GameAudio.newSound(Gdx.files.internal("audio/moedas-recompensa.wav"));
+        snackPurchaseSound = GameAudio.newSound(Gdx.files.internal("audio/compra-petisco.wav"));
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);

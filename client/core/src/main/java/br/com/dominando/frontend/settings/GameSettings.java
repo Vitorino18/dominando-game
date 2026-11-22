@@ -9,10 +9,24 @@ public class GameSettings {
     private static final String SOUND_EFFECTS = "sound-effects";
     private static final String VIBRATION = "vibration";
     private static final String MUSIC_VOLUME = "music-volume";
+    private static final String SOUND_EFFECTS_VOLUME = "sound-effects-volume";
     private final Preferences preferences;
 
     public GameSettings() {
         preferences = Gdx.app.getPreferences(FILE_NAME);
+    }
+
+    public int getSoundEffectsVolume() {
+        return preferences.getInteger(SOUND_EFFECTS_VOLUME, 100);
+    }
+
+    public void setSoundEffectsVolume(int percent) {
+        int volume = Math.max(0, Math.min(100, percent));
+
+        if (volume != getSoundEffectsVolume()) {
+            preferences.putInteger(SOUND_EFFECTS_VOLUME, volume);
+            preferences.flush();
+        }
     }
 
     public int getMusicVolume() {
