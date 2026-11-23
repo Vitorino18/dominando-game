@@ -129,7 +129,7 @@ public class Partida {
     public ResultadoJogada passarVez() {
         Jogador jogador = getJogadorVez();
 
-        if (mesaService.existeJogadaPara(jogador) && !comprouNoTurno){
+        if (mesaService.existeJogadaPara(jogador)){
             return ResultadoJogada.NAO_PODE_PASSAR;
         }
         if (!comprouNoTurno && podeComprar()){
