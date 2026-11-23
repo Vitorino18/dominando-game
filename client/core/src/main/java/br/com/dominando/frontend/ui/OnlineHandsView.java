@@ -2,9 +2,12 @@ package br.com.dominando.frontend.ui;
 
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 
 import br.com.dominando.grpc.PecaMensagem;
 
+import java.util.function.IntConsumer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +24,10 @@ public final class OnlineHandsView extends Group {
 
     private List<PecaMensagem> previousHand = Collections.emptyList();
 
+    private IntConsumer onSelect = index -> {};
+    private boolean selectionEnabled;
+    private int selectedIndex = -1;
+
     public OnlineHandsView(DominoAssets assets, float designWidth, float designHeight, float humanY, float opponentY) {
         this.assets = assets;
         this.designWidth = designWidth;
@@ -28,7 +35,7 @@ public final class OnlineHandsView extends Group {
         this.opponentY = opponentY;
 
         setSize(designWidth, designHeight);
-        setTouchable(Touchable.disabled);
+        setTouchable(Touchable.childrenOnly);
     }
 
     public void setHands(List<PecaMensagem> hand, int opponentCount) {
@@ -37,10 +44,23 @@ public final class OnlineHandsView extends Group {
         }
 
         if (!previousHand.equals(hand)) {
+            selectedIndex = -1;
             clearTiles(humanTiles);
 
             for (PecaMensagem piece : hand) {
                 DominoTile tile = new DominoTile(assets, piece.getLadoA(), piece.getLadoB());
+
+                final int index = humanTiles.size();
+
+                tile.setTouchable(selectionEnabled ? Touchable.enabled : Touchable.disabled);
+                tile.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent event, float x, float y) {
+                        if (selectionEnabled && getTile(true, index) == tile) {
+                            onSelect.accept(index);
+                        }
+                    }
+                });
 
                 humanTiles.add(tile);
                 addActor(tile);
@@ -57,11 +77,50 @@ public final class OnlineHandsView extends Group {
                 DominoTile tile = new DominoTile(assets, 0, 0);
                 tile.setFaceDown(true);
 
+                tile.setTouchable(Touchable.disabled);
+
                 opponentTiles.add(tile);
                 addActor(tile);
             }
 
             layoutTiles(opponentTiles, false);
+        }
+    }
+
+    public void setOnSelect(IntConsumer onSelect) {
+        this.onSelect = onSelect;
+    }
+
+    public int getSelectedIndex() {
+        return selectedIndex;
+    }
+
+    public void setSelectedIndex(int index) {
+        int validIndex =
+            index >= 0 && index < humanTiles.size() ? index : -1;
+
+        if (selectedIndex == validIndex) {
+            return;
+        }
+
+        selectedIndex = validIndex;
+
+        for (int i = 0; i < humanTiles.size(); i++) {
+            humanTiles.get(i).setSelected(i == selectedIndex);
+        }
+    }
+
+    public void setSelectionEnabled(boolean enabled) {
+        selectionEnabled = enabled;
+
+        for (DominoTile tile : humanTiles) {
+            tile.setTouchable(
+                enabled ? Touchable.enabled : Touchable.disabled
+            );
+        }
+
+        if (!enabled) {
+            setSelectedIndex(-1);
         }
     }
 

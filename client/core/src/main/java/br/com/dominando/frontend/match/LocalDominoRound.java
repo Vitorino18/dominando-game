@@ -44,6 +44,16 @@ public final class LocalDominoRound {
             this.left = left;
             this.right = right;
         }
+
+        public static Placement fromValues(int left, int right) {
+            if (left < 0 || left > 6 || right < 0 || right > 6) {
+                throw new IllegalArgumentException("Os valores da peça devem estar entre 0 e 6.");
+            }
+
+            return new Placement(
+                new Stone(left, right), left, right
+            );
+        }
     }
 
     private final List<Stone> humanHand = new ArrayList<>();

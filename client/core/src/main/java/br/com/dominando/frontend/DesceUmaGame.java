@@ -19,6 +19,7 @@ import br.com.dominando.frontend.audio.GameAudio;
 import br.com.dominando.frontend.network.ClienteJogo;
 
 import br.com.dominando.grpc.EstadoJogoResponse;
+import br.com.dominando.grpc.LadoJogada;
 
 import io.grpc.Status;
 
@@ -363,6 +364,8 @@ public class DesceUmaGame extends Game {
                 nomeJogador,
                 ultimoEstadoJogo
             );
+
+            matchScreen.setOnJogarPecaOnline(this::jogarPecaOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -373,6 +376,44 @@ public class DesceUmaGame extends Game {
         }
 
         setScreen(matchIntroScreen);
+    }
+
+    private void jogarPecaOnline(int indice, LadoJogada lado) {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null || getScreen() != tela) {
+            return;
+        }
+
+        clienteJogo.jogarPeca(
+            codigoSala,
+            tokenJogador,
+            indice,
+            lado,
+            resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarJogadaOnline(
+                    resposta.getResultado()
+                );
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                Gdx.app.log(
+                    "Rede",
+                    "Falha ao confirmar jogada: "
+                        + Status.fromThrowable(erro).getCode()
+                );
+
+                tela.falharJogadaOnline();
+            }
+        );
     }
 
     private void showMatch() {

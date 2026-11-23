@@ -14,6 +14,9 @@ import br.com.dominando.grpc.IniciarPartidaRequest;
 import br.com.dominando.grpc.IniciarPartidaResponse;
 import br.com.dominando.grpc.EstadoJogoRequest;
 import br.com.dominando.grpc.EstadoJogoResponse;
+import br.com.dominando.grpc.AcaoJogoResponse;
+import br.com.dominando.grpc.JogarPecaRequest;
+import br.com.dominando.grpc.LadoJogada;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -55,6 +58,11 @@ public final class ClienteJogo implements Disposable {
     public void iniciarPartida(String codigo, String token, Consumer<IniciarPartidaResponse> sucesso, Consumer<Throwable> erro) {
         IniciarPartidaRequest request = IniciarPartidaRequest.newBuilder().setCodigoSala(codigo).setTokenCriador(token).build();
         stub.withDeadlineAfter(8, TimeUnit.SECONDS).iniciarPartida(request, observar(sucesso, erro));
+    }
+
+    public void jogarPeca(String codigo, String token, int indice, LadoJogada lado, Consumer<AcaoJogoResponse> sucesso, Consumer<Throwable> erro) {
+        JogarPecaRequest request = JogarPecaRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).setIndicePeca(indice).setLado(lado).build();
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).jogarPeca(request, observar(sucesso, erro));
     }
 
     public void acompanharJogo(String codigo, String token, Consumer<EstadoJogoResponse> receber, Consumer<Throwable> erro) {
