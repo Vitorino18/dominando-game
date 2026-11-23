@@ -363,6 +363,12 @@ public class MatchScreen extends ScreenAdapter {
                 }
             }),
             Actions.delay(2f),
+            Actions.run(() -> {
+                if (venceu) {
+                    showCoinReward();
+                }
+            }),
+            Actions.delay(venceu ? 2f : 0f),
             Actions.fadeOut(0.25f, Interpolation.smooth),
             Actions.run(this::terminarResultadoOnline)
         ));

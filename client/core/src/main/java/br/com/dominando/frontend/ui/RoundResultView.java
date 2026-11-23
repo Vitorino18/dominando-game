@@ -213,6 +213,11 @@ public final class RoundResultView extends Group implements Disposable {
     }
 
     public void showWinningCoins() {
+        showWinningCoins(2);
+    }
+
+    public void showWinningCoins(int amount) {
+        coinRewardLabel.setText("+" + amount + (amount == 1 ? " MOEDA" : " MOEDAS"));
         humanCap.setVisible(false);
         capGlow.setVisible(false);
         rewardLabel.setVisible(false);
