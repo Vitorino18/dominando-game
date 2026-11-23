@@ -333,11 +333,7 @@ public class MatchScreen extends ScreenAdapter {
         opponentInfoView.setActiveTurn(false);
     }
 
-    private void mostrarRodadaOnline(
-        boolean venceu,
-        int minhasTampinhas,
-        int tampinhasAdversario
-    ) {
+    private void mostrarRodadaOnline(boolean venceu, int minhasTampinhas, int tampinhasAdversario, int moedasRecebidas) {
         onlineShowingResult = true;
         bloquearInteracaoOnline();
 
@@ -364,11 +360,11 @@ public class MatchScreen extends ScreenAdapter {
             }),
             Actions.delay(2f),
             Actions.run(() -> {
-                if (venceu) {
-                    showCoinReward();
+                if (venceu && moedasRecebidas > 0) {
+                    showCoinReward(moedasRecebidas);
                 }
             }),
-            Actions.delay(venceu ? 2f : 0f),
+            Actions.delay(venceu && moedasRecebidas > 0 ? 2f : 0f),
             Actions.fadeOut(0.25f, Interpolation.smooth),
             Actions.run(this::terminarResultadoOnline)
         ));
@@ -829,6 +825,7 @@ public class MatchScreen extends ScreenAdapter {
             );
         }
 
+        humanCoins = local.getPontosPetiscos();
         EstadoJogoResponse anterior = onlineState;
         onlineState = estado;
 
@@ -850,7 +847,18 @@ public class MatchScreen extends ScreenAdapter {
         String vencedor = vencedorRodadaOnline(anterior, estado);
 
         if (vencedor != null) {
-            mostrarRodadaOnline(onlinePlayerName.equals(vencedor), local.getVitorias(), adversario.getVitorias());
+            int moedasRecebidas = 0;
+
+            if (anterior != null) {
+                for (JogadorMensagem jogador : anterior.getJogadoresList()) {
+                    if (onlinePlayerName.equals(jogador.getNome())) {
+                        moedasRecebidas = Math.max(0, local.getPontosPetiscos() - jogador.getPontosPetiscos());
+                        break;
+                    }
+                }
+            }
+
+            mostrarRodadaOnline(onlinePlayerName.equals(vencedor), local.getVitorias(), adversario.getVitorias(), moedasRecebidas);
             return;
         }
 
@@ -1265,7 +1273,15 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void showCoinReward() {
-        roundResultView.showWinningCoins();
+        showCoinReward(2);
+    }
+
+    private void showCoinReward(int amount) {
+        if (amount <= 0) {
+            return;
+        }
+
+        roundResultView.showWinningCoins(amount);
 
         if (gameSettings.isSoundEffectsEnabled()) {
             GameAudio.play(coinRewardSound, 0.70f);
