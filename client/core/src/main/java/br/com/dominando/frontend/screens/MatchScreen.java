@@ -630,15 +630,10 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
-        // Neste primeiro teste, enviamos somente a peça de saída.
-        if (onlineState.getPecasMesaCount() != 0
-            || side != Side.LEFT) {
-            return;
-        }
-
         refreshOnlinePreviews();
+        DominoTile preview = side == Side.LEFT ? leftEndPreview : rightEndPreview;
 
-        if (!leftEndPreview.isVisible()) {
+        if (!preview.isVisible()) {
             return;
         }
 
@@ -648,16 +643,20 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
+        PecaMensagem peca = onlineState.getMinhaMao(index);
+
+        if (criarPreviaOnline(peca, side) == null) {
+            return;
+        }
+
+        LadoJogada lado = side == Side.LEFT ? LadoJogada.ESQUERDA : LadoJogada.DIREITA;
         onlineBeforePlay = onlineState;
         onlinePlayAnswered = false;
         onlineActionMessage = null;
 
         aplicarEstadoOnline(onlineState);
 
-        onJogarPecaOnline.accept(
-            index,
-            LadoJogada.ESQUERDA
-        );
+        onJogarPecaOnline.accept(index, lado);
     }
 
     public void confirmarJogadaOnline(String resultado) {
@@ -731,8 +730,7 @@ public class MatchScreen extends ScreenAdapter {
         leftEndPreview.setVisible(false);
         rightEndPreview.setVisible(false);
 
-        if (!canSelectOnline()
-            || onlineState.getPecasMesaCount() != 0) {
+        if (!canSelectOnline()) {
             return;
         }
 
@@ -744,28 +742,47 @@ public class MatchScreen extends ScreenAdapter {
 
         PecaMensagem peca = onlineState.getMinhaMao(index);
 
-        if (!aberturaOnlinePermitida(peca)) {
-            return;
+        Placement left = criarPreviaOnline(peca, Side.LEFT);
+        Placement right = criarPreviaOnline(peca, Side.RIGHT);
+
+        showPreview(leftEndPreview, left, previewPose(left, Side.LEFT, chainSizePercent));
+        showPreview(rightEndPreview, right, previewPose(right, Side.RIGHT, chainSizePercent));
+    }
+
+    private Placement criarPreviaOnline(PecaMensagem peca, Side side) {
+        int a = peca.getLadoA();
+        int b = peca.getLadoB();
+
+        if (onlineState.getPecasMesaCount() == 0) {
+            if (side != Side.LEFT || !aberturaOnlinePermitida(peca)) {
+                return null;
+            }
+
+            return Placement.fromValues(a, b);
         }
 
-        leftEndPreview.setValues(
-            peca.getLadoA(),
-            peca.getLadoB()
-        );
+        if (side == Side.LEFT) {
+            int ponta = onlineState.getPecasMesa(0).getLadoA();
 
-        float rotation =
-            peca.getLadoA() == peca.getLadoB() ? 0f : 90f;
+            if (a != ponta && b != ponta) {
+                return null;
+            }
 
-        Pose pose = chainPose(
-            OPENING_X,
-            OPENING_Y,
-            rotation,
-            1f
-        );
+            int fora = a == ponta ? b : a;
 
-        pose.applyTo(leftEndPreview);
-        leftEndPreview.toFront();
-        leftEndPreview.setVisible(true);
+            return Placement.fromValues(fora, ponta);
+        }
+
+        int ultimo = onlineState.getPecasMesaCount() - 1;
+        int ponta = onlineState.getPecasMesa(ultimo).getLadoB();
+
+        if (a != ponta && b != ponta) {
+            return null;
+        }
+
+        int fora = a == ponta ? b : a;
+
+        return Placement.fromValues(ponta, fora);
     }
 
     private boolean aberturaOnlinePermitida(PecaMensagem peca) {
