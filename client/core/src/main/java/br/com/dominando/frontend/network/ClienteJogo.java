@@ -17,6 +17,7 @@ import br.com.dominando.grpc.EstadoJogoResponse;
 import br.com.dominando.grpc.AcaoJogoResponse;
 import br.com.dominando.grpc.JogarPecaRequest;
 import br.com.dominando.grpc.LadoJogada;
+import br.com.dominando.grpc.AcaoSimplesRequest;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -63,6 +64,16 @@ public final class ClienteJogo implements Disposable {
     public void jogarPeca(String codigo, String token, int indice, LadoJogada lado, Consumer<AcaoJogoResponse> sucesso, Consumer<Throwable> erro) {
         JogarPecaRequest request = JogarPecaRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).setIndicePeca(indice).setLado(lado).build();
         stub.withDeadlineAfter(8, TimeUnit.SECONDS).jogarPeca(request, observar(sucesso, erro));
+    }
+
+    public void comprarPeca(String codigo, String token, Consumer<AcaoJogoResponse> sucesso, Consumer<Throwable> erro) {
+        AcaoSimplesRequest request = AcaoSimplesRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).build();
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).comprarPeca(request, observar(sucesso, erro));
+    }
+
+    public void passarVez(String codigo, String token, Consumer<AcaoJogoResponse> sucesso, Consumer<Throwable> erro) {
+        AcaoSimplesRequest request = AcaoSimplesRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).build();
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).passarVez(request, observar(sucesso, erro));
     }
 
     public void acompanharJogo(String codigo, String token, Consumer<EstadoJogoResponse> receber, Consumer<Throwable> erro) {

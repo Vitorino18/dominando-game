@@ -366,6 +366,8 @@ public class DesceUmaGame extends Game {
             );
 
             matchScreen.setOnJogarPecaOnline(this::jogarPecaOnline);
+            matchScreen.setOnComprarPecaOnline(this::comprarPecaOnline);
+            matchScreen.setOnPassarVezOnline(this::passarVezOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -376,6 +378,32 @@ public class DesceUmaGame extends Game {
         }
 
         setScreen(matchIntroScreen);
+    }
+
+    private void passarVezOnline() {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null || getScreen() != tela) {
+            return;
+        }
+
+        clienteJogo.passarVez(codigoSala, tokenJogador, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarJogadaOnline(resposta.getResultado());
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                Gdx.app.log("Rede", "Falha ao confirmar passe: " + Status.fromThrowable(erro).getCode());
+                tela.falharJogadaOnline();
+            }
+        );
     }
 
     private void jogarPecaOnline(int indice, LadoJogada lado) {
@@ -411,6 +439,31 @@ public class DesceUmaGame extends Game {
                         + Status.fromThrowable(erro).getCode()
                 );
 
+                tela.falharJogadaOnline();
+            }
+        );
+    }
+
+    private void comprarPecaOnline() {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null || getScreen() != tela) {
+            return;
+        }
+
+        clienteJogo.comprarPeca(codigoSala, tokenJogador, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+                tela.confirmarJogadaOnline(resposta.getResultado());
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                Gdx.app.log("Rede", "Falha ao confirmar compra: " + Status.fromThrowable(erro).getCode());
                 tela.falharJogadaOnline();
             }
         );

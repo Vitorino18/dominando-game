@@ -182,9 +182,11 @@ public class MatchScreen extends ScreenAdapter {
     private EstadoJogoResponse onlineBeforePlay;
     private boolean onlinePlayAnswered;
     private String onlineActionMessage;
-
     private EstadoJogoResponse onlineState;
     private String onlineConnectionMessage;
+    private Runnable onComprarPecaOnline;
+    private boolean onlineBoughtThisTurn;
+    private Runnable onPassarVezOnline;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
@@ -210,6 +212,114 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         return onlineHandsView.getTile(false, 0);
+    }
+
+    public void setOnComprarPecaOnline(Runnable callback) {
+        onComprarPecaOnline = callback;
+    }
+
+    private boolean temEncaixeOnline() {
+        if (onlineState == null) {
+            return false;
+        }
+
+        for (PecaMensagem peca : onlineState.getMinhaMaoList()) {
+            if (criarPreviaOnline(peca, Side.LEFT) != null || criarPreviaOnline(peca, Side.RIGHT) != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean podeComprarOnline() {
+        return canSelectOnline()
+            && !onlineBoughtThisTurn
+            && onlineState.getPecasBaralho() > 0
+            && !temEncaixeOnline();
+    }
+
+    private void comprarPecaOnline() {
+        if (!podeComprarOnline() || onComprarPecaOnline == null) {
+            return;
+        }
+
+        onlineBeforePlay = onlineState;
+        onlinePlayAnswered = false;
+        onlineActionMessage = null;
+
+        aplicarEstadoOnline(onlineState);
+
+        onComprarPecaOnline.run();
+    }
+
+    private boolean registrarCompraOnline(EstadoJogoResponse anterior, EstadoJogoResponse atual) {
+        boolean minhaVez = onlinePlayerName.equals(atual.getJogadorDaVez());
+        boolean mudouTurno = anterior == null || !anterior.getJogadorDaVez().equals(atual.getJogadorDaVez());
+
+        boolean reiniciouMesa = anterior != null
+            && anterior.getPecasMesaCount() > 0
+            && atual.getPecasMesaCount() == 0;
+
+        if (!minhaVez || mudouTurno || reiniciouMesa) {
+            onlineBoughtThisTurn = false;
+        }
+
+        boolean compraRecebida = anterior != null
+                && !mudouTurno
+                && !reiniciouMesa
+                && atual.getPecasBaralho() == anterior.getPecasBaralho() - 1
+                && atual.getPecasMesaList().equals(anterior.getPecasMesaList());
+
+        if (compraRecebida && minhaVez) {
+            onlineBoughtThisTurn = true;
+        }
+
+        return compraRecebida;
+    }
+
+    public void setOnPassarVezOnline(Runnable callback) {
+        onPassarVezOnline = callback;
+    }
+
+    private boolean podePassarOnline() {
+        return canSelectOnline()
+            && !temEncaixeOnline()
+            && (onlineBoughtThisTurn || onlineState.getPecasBaralho() == 0);
+    }
+
+    private void registrarBatidaOnline() {
+        if (!podePassarOnline() || onPassarVezOnline == null || !passButton.isVisible() || passButton.taps >= 2) {
+            return;
+        }
+
+        passButton.showTaps(passButton.taps + 1);
+        playPassTap();
+
+        if (passButton.taps == 2) {
+            passButton.setTouchable(Touchable.disabled);
+
+            passButton.addAction(Actions.sequence(
+                Actions.delay(0.22f),
+                Actions.run(this::enviarPasseOnline)
+            ));
+        }
+    }
+
+    private void enviarPasseOnline() {
+        if (!podePassarOnline() || onPassarVezOnline == null) {
+            passButton.setAvailable(false);
+            aplicarEstadoOnline(onlineState);
+            return;
+        }
+
+        onlineBeforePlay = onlineState;
+        onlinePlayAnswered = false;
+        onlineActionMessage = null;
+
+        aplicarEstadoOnline(onlineState);
+
+        onPassarVezOnline.run();
     }
 
     public MatchScreen (Runnable onLeaveMatch, Runnable onUiClick, String playerName, EstadoJogoResponse initialState) {
@@ -401,6 +511,11 @@ public class MatchScreen extends ScreenAdapter {
         cavaView.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
+                if (online) {
+                    comprarPecaOnline();
+                    return;
+                }
+
                 if (canAct() && !choosingCoxinha) {
                     drawForCurrentPlayer();
                 }
@@ -564,11 +679,26 @@ public class MatchScreen extends ScreenAdapter {
             );
         }
 
+        EstadoJogoResponse anterior = onlineState;
         onlineState = estado;
+        boolean compraRecebida = registrarCompraOnline(anterior, estado);
+        if (entranceFinished && foiPasseAdversarioOnline(anterior, estado)) {
+            tilesLayer.addAction(Actions.sequence(
+                Actions.run(this::playPassTap),
+                Actions.delay(0.18f),
+                Actions.run(this::playPassTap)
+            ));
+        }
         atualizarConfirmacaoOnline();
         atualizarMesaOnline(estado.getPecasMesaList());
 
         onlineHandsView.setHands(estado.getMinhaMaoList(), adversario.getQuantidadePecas());
+
+        if (entranceFinished && compraRecebida) {
+            boolean compraLocal = onlinePlayerName.equals(estado.getJogadorDaVez());
+            int index = compraLocal ? estado.getMinhaMaoCount() - 1 : adversario.getQuantidadePecas() - 1;
+            animarCompraOnline(compraLocal, index);
+        }
 
         playerInfoView.setPlayerName(local.getNome());
         opponentInfoView.setPlayerName(adversario.getNome());
@@ -583,11 +713,11 @@ public class MatchScreen extends ScreenAdapter {
 
         cavaView.setDisplayedCount(estado.getPecasBaralho());
         cavaView.setVisible(estado.getPecasBaralho() > 0);
-        cavaView.setTouchable(Touchable.disabled);
+        cavaView.setTouchable(podeComprarOnline() ? Touchable.enabled : Touchable.disabled);
 
         dealCavaView.setDisplayedCount(estado.getPecasBaralho());
 
-        passButton.setAvailable(false);
+        passButton.setAvailable(podePassarOnline());
         leftEndPreview.setVisible(false);
         rightEndPreview.setVisible(false);
 
@@ -617,6 +747,38 @@ public class MatchScreen extends ScreenAdapter {
         } else if (onlineBeforePlay != null) {
             playerInfoView.setTurnPrompt("Confirmando jogada...");
         }
+    }
+
+    private void animarCompraOnline(boolean compraLocal, int index) {
+        DominoTile tile = onlineHandsView.getTile(compraLocal, index);
+
+        if (tile == null) {
+            return;
+        }
+
+        float targetX = tile.getX();
+        float targetY = tile.getY();
+        float targetWidth = tile.getWidth();
+        float targetHeight = tile.getHeight();
+
+        movingStone = true;
+        onlineHandsView.setSelectionEnabled(false);
+
+        tile.setBounds(CAVA_X + 70f * CAVA_SCALE, CAVA_Y + 30f * CAVA_SCALE, 44f, 82f);
+        tile.toFront();
+
+        GameAudio.play(drawSound, 0.65f);
+
+        tile.addAction(Actions.sequence(
+            Actions.parallel(
+                Actions.moveTo(targetX, targetY, CHAIN_MOVE_DURATION, Interpolation.smooth),
+                Actions.sizeTo(targetWidth, targetHeight, CHAIN_MOVE_DURATION, Interpolation.smooth)
+            ),
+            Actions.run(() -> {
+                movingStone = false;
+                aplicarEstadoOnline(onlineState);
+            })
+        ));
     }
 
     public void setOnJogarPecaOnline(
@@ -669,7 +831,13 @@ public class MatchScreen extends ScreenAdapter {
         boolean aceita =
             "JOGADA_VALIDA".equals(resultado)
                 || "PARTIDA_ENCERRADA".equals(resultado)
-                || "GATO".equals(resultado);
+                || "GATO".equals(resultado)
+                || "COMPRA_REALIZADA".equals(resultado)
+                || "VEZ_PASSADA".equals(resultado);
+
+        if ("COMPROU_JA_REALIZADA".equals(resultado)) {
+            onlineBoughtThisTurn = true;
+        }
 
         if (!aceita) {
             onlineBeforePlay = null;
@@ -682,6 +850,19 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         aplicarEstadoOnline(onlineState);
+    }
+
+    private void atualizarControlesOnline() {
+        boolean comprar = podeComprarOnline();
+        boolean passar = podePassarOnline();
+
+        cavaView.setTouchable(comprar ? Touchable.enabled : Touchable.disabled);
+
+        passButton.setAvailable(passar);
+
+        if (canSelectOnline() && onlineActionMessage == null) {
+            playerInfoView.setTurnPrompt(passar ? "Bata duas vezes" : comprar ? "Toque na cava" : "Sua Vez");
+        }
     }
 
     public void falharJogadaOnline() {
@@ -726,11 +907,73 @@ public class MatchScreen extends ScreenAdapter {
         onlineHandsView.setSelectedIndex(current == index ? -1 : index);
     }
 
+    private boolean previasOnlineCabem(int percent) {
+        if (layoutChain(chainMoves, percent) == null) {
+            return false;
+        }
+
+        for (PecaMensagem peca : onlineState.getMinhaMaoList()) {
+            Placement left = criarPreviaOnline(peca, Side.LEFT);
+            Placement right = criarPreviaOnline(peca, Side.RIGHT);
+            Pose leftPose = previewPose(left, Side.LEFT, percent);
+            Pose rightPose = previewPose(right, Side.RIGHT, percent);
+
+            if ((left != null && leftPose == null) || (right != null && rightPose == null)) {
+                return false;
+            }
+
+            if (leftPose != null
+                && rightPose != null
+                && chainBody(leftPose).overlaps(chainBody(rightPose))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean prepararEspacoOnline() {
+        int percent = chainSizePercent;
+
+        while (!previasOnlineCabem(percent)) {
+            if (percent == MIN_CHAIN_PERCENT) {
+                return false;
+            }
+
+            percent -= CHAIN_SCALE_STEP;
+        }
+
+        if (percent == chainSizePercent || chainMoves.isEmpty()) {
+            return false;
+        }
+
+        Map<Placement, Pose> poses = layoutChain(chainMoves, percent);
+
+        chainSizePercent = percent;
+        movingStone = true;
+        applyChainLayout(poses, null);
+        DominoTile referencia = chainActors.get(chainMoves.get(0).placement);
+
+        referencia.addAction(Actions.sequence(
+            Actions.delay(CHAIN_MOVE_DURATION),
+            Actions.run(() -> {
+                movingStone = false;
+                aplicarEstadoOnline(onlineState);
+            })
+        ));
+
+        return true;
+    }
+
     private void refreshOnlinePreviews() {
         leftEndPreview.setVisible(false);
         rightEndPreview.setVisible(false);
 
         if (!canSelectOnline()) {
+            return;
+        }
+
+        if (prepararEspacoOnline()) {
             return;
         }
 
@@ -887,8 +1130,10 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void playPassTap() {
-        if (gameSettings.isSoundEffectsEnabled()) {
-            GameAudio.play(passTapSound, 0.70f);
+        boolean enabled = gameSettings.isSoundEffectsEnabled();
+
+        if (enabled) {
+            long id = GameAudio.play(passTapSound, 0.70f);
         }
     }
 
@@ -1649,6 +1894,11 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void registerPassTap() {
+        if (online) {
+            registrarBatidaOnline();
+            return;
+        }
+
         if (!passButton.isVisible() || !canAct() || !round.canPass() || passButton.taps == 2) {
             return;
         }
@@ -2471,22 +2721,27 @@ public class MatchScreen extends ScreenAdapter {
         return true;
     }
 
+    private boolean foiPasseAdversarioOnline(EstadoJogoResponse anterior, EstadoJogoResponse atual) {
+        return anterior != null
+            && !onlinePlayerName.equals(anterior.getJogadorDaVez())
+            && !anterior.getJogadorDaVez().equals(atual.getJogadorDaVez())
+            && anterior.getPecasBaralho() == atual.getPecasBaralho()
+            && anterior.getMinhaMaoList().equals(atual.getMinhaMaoList())
+            && anterior.getPecasMesaList().equals(atual.getPecasMesaList())
+            && anterior.getJogadoresList().equals(atual.getJogadoresList());
+    }
+
     private void renderOnline(float delta) {
         float dt = Math.min(delta, 1f / 30f);
         float previousEntranceTime = entranceTime;
 
-        entranceTime = Math.min(
-            entranceTime + dt,
-            PREPARATION_END
-        );
+        entranceTime = Math.min(entranceTime + dt, PREPARATION_END);
 
-        if (previousEntranceTime < ENTRANCE_DURATION
-            && entranceTime >= ENTRANCE_DURATION) {
+        if (previousEntranceTime < ENTRANCE_DURATION && entranceTime >= ENTRANCE_DURATION) {
             playShuffleSound();
         }
 
-        if (previousEntranceTime < BAR_AMBIENCE_END
-            && entranceTime >= BAR_AMBIENCE_END) {
+        if (previousEntranceTime < BAR_AMBIENCE_END && entranceTime >= BAR_AMBIENCE_END) {
             GameAudio.stop(barAmbience);
         }
 
@@ -2510,6 +2765,7 @@ public class MatchScreen extends ScreenAdapter {
         redistributionMessage.setVisible(false);
         snackActionView.setVisible(false);
         refreshOnlinePreviews();
+        atualizarControlesOnline();
 
         stage.draw();
     }
