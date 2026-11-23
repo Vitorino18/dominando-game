@@ -55,6 +55,8 @@ public class DesceUmaGame extends Game {
     private boolean falhaStreamingDefinitiva;
     private float tempoReconexaoStreaming;
 
+    private int versaoSessao;
+
     @Override
     public void create() {
         gameSettings = new GameSettings();
@@ -68,6 +70,7 @@ public class DesceUmaGame extends Game {
     }
 
     private void showPairing() {
+        versaoSessao++;
         clienteJogo.pararAcompanhamento();
         acompanhandoJogo = false;
         ultimoEstadoJogo = null;
@@ -145,7 +148,7 @@ public class DesceUmaGame extends Game {
     private void atualizarStreaming() {
         if (!partidaIniciada
             || waitingScreen == null
-            || getScreen() != waitingScreen
+            || !emFluxoPartida()
             || acompanhandoJogo
             || falhaStreamingDefinitiva) {
             return;
@@ -165,6 +168,7 @@ public class DesceUmaGame extends Game {
         acompanhandoJogo = true;
         iniciandoPartida = false;
         salaPodeIniciar = false;
+        int sessao = versaoSessao;
 
         WaitingScreen telaAcompanhada = waitingScreen;
 
@@ -177,24 +181,24 @@ public class DesceUmaGame extends Game {
             codigoSala,
             tokenJogador,
             estado -> {
-                if (getScreen() != telaAcompanhada
-                    || waitingScreen != telaAcompanhada) {
+                if (sessao != versaoSessao || !emFluxoPartida()) {
                     return;
                 }
 
                 ultimoEstadoJogo = estado;
 
-                if (estado.getCompeticaoEncerrada()) {
-                    telaAcompanhada.atualizarStatus(
-                        "Partida encerrada.\nCampeão: "
-                            + estado.getCampeao()
-                    );
+                if (matchScreen == null) {
+                    if (estado.getCompeticaoEncerrada()) {
+                        telaAcompanhada.atualizarStatus(
+                            "Partida encerrada.\nCampeão: "
+                                + estado.getCampeao()
+                        );
+                    } else {
+                        showMatchIntro();
+                    }
                 } else {
-                    telaAcompanhada.atualizarStatus(
-                        "Mão: " + estado.getMinhaMaoCount()
-                            + " peças | Cava: " + estado.getPecasBaralho()
-                            + "\nVez de " + estado.getJogadorDaVez()
-                    );
+                    matchScreen.setOnlineConnectionMessage(null);
+                    matchScreen.aplicarEstadoOnline(estado);
                 }
 
                 Gdx.app.log(
@@ -205,8 +209,7 @@ public class DesceUmaGame extends Game {
                 );
             },
             erro -> {
-                if (getScreen() != telaAcompanhada
-                    || waitingScreen != telaAcompanhada) {
+                if (sessao != versaoSessao || !emFluxoPartida()) {
                     return;
                 }
 
@@ -228,17 +231,24 @@ public class DesceUmaGame extends Game {
                 falhaStreamingDefinitiva = !temporario;
                 tempoReconexaoStreaming = 3f;
 
-                telaAcompanhada.atualizarStatus(
-                    temporario
-                        ? "Conexão de jogo interrompida.\nReconectando..."
-                        : "Não foi possível acompanhar a partida.\n"
-                        + "Volte e conecte novamente."
-                );
+                if (matchScreen != null) {
+                    matchScreen.setOnlineConnectionMessage(
+                        temporario ? "Reconectando..." : "Sem conexão"
+                    );
+                } else {
+                    telaAcompanhada.atualizarStatus(
+                        temporario
+                            ? "Conexão de jogo interrompida.\nReconectando..."
+                            : "Não foi possível acompanhar a partida.\n"
+                            + "Volte e conecte novamente."
+                    );
+                }
             }
         );
     }
 
     private void showWaiting(String codigo, String token, String nome, boolean criador) {
+        versaoSessao++;
         clienteJogo.pararAcompanhamento();
         ultimoEstadoJogo = null;
         acompanhandoJogo = false;
@@ -264,6 +274,15 @@ public class DesceUmaGame extends Game {
         if (previousWaiting != null) {
             previousWaiting.dispose();
         }
+    }
+
+    private boolean emFluxoPartida() {
+        Screen atual = getScreen();
+
+        return atual != null
+            && (atual == waitingScreen
+            || atual == matchIntroScreen
+            || atual == matchScreen);
     }
 
     private void showOpening() {
@@ -336,20 +355,30 @@ public class DesceUmaGame extends Game {
         );
     }
 
-    private void showMatchIntroDemo() {
+    private void showMatchIntro() {
         if (matchScreen == null) {
-            matchScreen = new MatchScreen(() -> Gdx.app.postRunnable(this::leaveMatch), this::playUiClickSound);
+            matchScreen = new MatchScreen(
+                () -> Gdx.app.postRunnable(this::leaveMatch),
+                this::playUiClickSound,
+                nomeJogador,
+                ultimoEstadoJogo
+            );
         }
 
         if (matchIntroScreen == null) {
-            matchIntroScreen = new MatchIntroScreen(gameSettings, () -> Gdx.app.postRunnable(this::showMatchDemo));
+            matchIntroScreen = new MatchIntroScreen(
+                gameSettings,
+                () -> Gdx.app.postRunnable(this::showMatch)
+            );
         }
 
         setScreen(matchIntroScreen);
     }
 
-    private void showMatchDemo() {
-        setScreen(matchScreen);
+    private void showMatch() {
+        if (matchScreen != null) {
+            setScreen(matchScreen);
+        }
     }
 
     private void playUiClickSound() {

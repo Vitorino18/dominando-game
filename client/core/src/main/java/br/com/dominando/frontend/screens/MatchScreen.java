@@ -49,7 +49,10 @@ import br.com.dominando.frontend.ui.IntervalView;
 import br.com.dominando.frontend.ui.SnackActionView;
 import br.com.dominando.frontend.ui.IntervalView.Snack;
 import br.com.dominando.frontend.audio.GameAudio;
+import br.com.dominando.frontend.ui.OnlineHandsView;
 
+import br.com.dominando.grpc.EstadoJogoResponse;
+import br.com.dominando.grpc.JogadorMensagem;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -165,8 +168,21 @@ public class MatchScreen extends ScreenAdapter {
     private final Runnable onUiClick;
     private final ImageButton settingsButton;
 
+    private final boolean online;
+    private final String onlinePlayerName;
+    private final OnlineHandsView onlineHandsView;
+
+    private EstadoJogoResponse onlineState;
+    private String onlineConnectionMessage;
+
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
+        this(onLeaveMatch, onUiClick, null, null);
+    }
+
+    public MatchScreen (Runnable onLeaveMatch, Runnable onUiClick, String playerName, EstadoJogoResponse initialState) {
         this.onUiClick = onUiClick;
+        online = initialState != null;
+        onlinePlayerName = playerName == null ? "" : playerName.trim();
 
         barAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shuffleSound = GameAudio.newSound(Gdx.files.internal("audio/embaralhar-domino.wav"));
@@ -358,7 +374,95 @@ public class MatchScreen extends ScreenAdapter {
             }
         });
 
-        startRound(null);
+        if (online) {
+            onlineHandsView = new OnlineHandsView(dominoAssets, WIDTH, HEIGHT, HUMAN_HAND_Y, OPPONENT_HAND_Y);
+            tilesLayer.addActor(onlineHandsView);
+            snackActionView.setVisible(false);
+            aplicarEstadoOnline(initialState);
+        } else {
+            onlineHandsView = null;
+            startRound(null);
+        }
+    }
+
+    public void aplicarEstadoOnline(EstadoJogoResponse estado) {
+        if (!online || estado == null) {
+            return;
+        }
+
+        JogadorMensagem local = null;
+        JogadorMensagem adversario = null;
+
+        for (JogadorMensagem jogador : estado.getJogadoresList()) {
+            if (onlinePlayerName.equals(jogador.getNome())) {
+                local = jogador;
+            } else {
+                adversario = jogador;
+            }
+        }
+
+        if (local == null || adversario == null) {
+            throw new IllegalStateException(
+                "Não foi possível identificar os dois jogadores."
+            );
+        }
+
+        onlineState = estado;
+
+        onlineHandsView.setHands(
+            estado.getMinhaMaoList(),
+            adversario.getQuantidadePecas()
+        );
+
+        playerInfoView.setPlayerName(local.getNome());
+        opponentInfoView.setPlayerName(adversario.getNome());
+
+        playerInfoView.setDisplayedCount(estado.getMinhaMaoCount());
+        opponentInfoView.setDisplayedCount(
+            adversario.getQuantidadePecas()
+        );
+
+        playerScoreView.setDisplayedScore(local.getVitorias());
+        opponentScoreView.setDisplayedScore(adversario.getVitorias());
+
+        cavaView.setDisplayedCount(estado.getPecasBaralho());
+        cavaView.setVisible(estado.getPecasBaralho() > 0);
+        cavaView.setTouchable(Touchable.disabled);
+
+        dealCavaView.setDisplayedCount(estado.getPecasBaralho());
+
+        passButton.setAvailable(false);
+        leftEndPreview.setVisible(false);
+        rightEndPreview.setVisible(false);
+
+        boolean destacarVez =
+            entranceFinished
+                && onlineConnectionMessage == null
+                && !estado.getCompeticaoEncerrada();
+
+        playerInfoView.setActiveTurn(
+            destacarVez
+                && local.getNome().equals(estado.getJogadorDaVez())
+        );
+
+        opponentInfoView.setActiveTurn(
+            destacarVez
+                && adversario.getNome().equals(estado.getJogadorDaVez())
+        );
+
+        if (onlineConnectionMessage != null) {
+            playerInfoView.setTurnPrompt(onlineConnectionMessage);
+        } else if (estado.getCompeticaoEncerrada()) {
+            playerInfoView.setTurnPrompt("Partida encerrada");
+        }
+    }
+
+    public void setOnlineConnectionMessage(String mensagem) {
+        onlineConnectionMessage = mensagem;
+
+        if (onlineState != null) {
+            aplicarEstadoOnline(onlineState);
+        }
     }
 
     private void playSnackPurchaseSound() {
@@ -549,8 +653,7 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
-    private void placeDealtTile(DominoTile tile, int index, float x, float y,
-                                float startX, float startY, float rotation, float dealTime) {
+    private void placeDealtTile(DominoTile tile, int index, float x, float y, float startX, float startY, float rotation, float dealTime) {
         float width = 44f;
         float height = 82f;
         boolean toCava = index >= 14;
@@ -570,8 +673,22 @@ public class MatchScreen extends ScreenAdapter {
                 visible = slide < 1f;
             } else {
                 Player player = index < 7 ? Player.OPPONENT : Player.HUMAN;
-                Stone stone = round.hand(player).get(slot);
-                DominoTile target = handActors.get(stone);
+                DominoTile target;
+
+                if (online) {
+                    target = onlineHandsView.getTile(
+                        player == Player.HUMAN,
+                        slot
+                    );
+                } else {
+                    Stone stone = round.hand(player).get(slot);
+                    target = handActors.get(stone);
+                }
+
+                if (target == null) {
+                    tile.setVisible(false);
+                    return;
+                }
                 targetX = target.getX() + target.getWidth() / 2f;
                 targetY = target.getY() + target.getHeight() / 2f;
                 width += (target.getWidth() - width) * progress;
@@ -867,8 +984,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private boolean canAct() {
-        return entranceFinished && !movingStone && !round.isFinished()
-            && round.turn() == Player.HUMAN;
+        return !online && entranceFinished && !movingStone && !round.isFinished() && round.turn() == Player.HUMAN;
     }
 
     private boolean canUseEgg() {
@@ -1274,6 +1390,11 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void refreshTurn() {
+        if (online) {
+            aplicarEstadoOnline(onlineState);
+            return;
+        }
+
         if (round.isFinished() && roundScored) {
             return;
         }
@@ -1992,8 +2113,55 @@ public class MatchScreen extends ScreenAdapter {
         return true;
     }
 
+    private void renderOnline(float delta) {
+        float dt = Math.min(delta, 1f / 30f);
+        float previousEntranceTime = entranceTime;
+
+        entranceTime = Math.min(
+            entranceTime + dt,
+            PREPARATION_END
+        );
+
+        if (previousEntranceTime < ENTRANCE_DURATION
+            && entranceTime >= ENTRANCE_DURATION) {
+            playShuffleSound();
+        }
+
+        if (previousEntranceTime < BAR_AMBIENCE_END
+            && entranceTime >= BAR_AMBIENCE_END) {
+            GameAudio.stop(barAmbience);
+        }
+
+        updateEntrance();
+        playDealSounds(previousEntranceTime);
+
+        if (!entranceFinished && entranceTime >= PREPARATION_END) {
+            entranceFinished = true;
+            refreshTurn();
+        }
+
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        stage.getViewport().apply();
+        stage.act(dt);
+
+        boolean ready = entranceTime >= PREPARATION_END;
+
+        tilesLayer.setVisible(ready);
+        hudLayer.setVisible(ready);
+        gameHud.setVisible(true);
+        redistributionMessage.setVisible(false);
+        snackActionView.setVisible(false);
+
+        stage.draw();
+    }
+
     @Override
     public void render(float delta) {
+        if (online) {
+            renderOnline(delta);
+            return;
+        }
+
         float dt = Math.min(delta, 1f / 30f);
 
         float previousEntranceTime = entranceTime;
