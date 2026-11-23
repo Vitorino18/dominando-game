@@ -118,6 +118,7 @@ message JogadorMensagem {
   int32 vitorias = 4;
   int32 gatos = 5;
   int32 pontos_petiscos = 6;
+  bool conectado = 7;
 }
 
 message EstadoJogoRequest {

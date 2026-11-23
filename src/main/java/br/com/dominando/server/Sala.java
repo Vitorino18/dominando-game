@@ -137,9 +137,10 @@ public class Sala {
         }
 
         AtomicReference<AssinaturaJogo> referencia = new AtomicReference<>();
-        AssinaturaJogo assinatura = new AssinaturaJogo(token, observer, executor, () -> assinaturas.remove(referencia.get()));
-
+        AssinaturaJogo assinatura = new AssinaturaJogo(token, observer, executor, () -> removerAssinatura(referencia.get()));
         referencia.set(assinatura);
+        assinatura.registrarCancelamento();
+
         if (assinatura.isAtiva()) {
             assinaturas.add(assinatura);
         }
@@ -154,6 +155,9 @@ public class Sala {
         if (iniciada && partidaGeral != null) {
             assinatura.publicar(consultarEstadoJogo(token));
         }
+
+        // Notifica o oponente de que o jogador conectou //
+        notificarJogadores();
         return assinatura;
     }
 
@@ -162,6 +166,8 @@ public class Sala {
         if (!iniciada || partidaGeral == null) {
             return;
         }
+
+        System.out.println("[SALA] Notificando jogadores. Assinaturas: " + assinaturas.size());
 
         for (AssinaturaJogo assinatura : assinaturas) {
             if (!assinatura.isAtiva()) {
@@ -193,6 +199,7 @@ public class Sala {
                     .setVitorias(jogador.getVitorias())
                     .setGatos(jogador.getErros())
                     .setPontosPetiscos(jogador.getPontosPetiscos())
+                    .setConectado(jogadorConectadoPorNome(jogador.getNome()))
                     .build();
 
             resposta.addJogadores(dados);
@@ -244,6 +251,39 @@ public class Sala {
         return quantidade;
     }
 
+    private boolean jogadorConectado(String token) {
+        for (AssinaturaJogo assinatura : assinaturas) {
+            if (assinatura.isAtiva() && assinatura.getToken().equals(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private synchronized void removerAssinatura(AssinaturaJogo assinatura) {
+        if (assinaturas.remove(assinatura)) {
+            System.out.println(
+                    "[SALA] Assinatura removida. Token: "
+                            + assinatura.getToken()
+            );
+
+            notificarJogadores();
+        }
+
+        /* boolean removida = assinaturas.remove(assinatura);
+        if (removida) {
+            notificarJogadores();
+        }*/
+    }
+
+    private boolean jogadorConectadoPorNome(String nome) {
+        for (ParticipanteSala participante : participantes) {
+            if (participante.getNome().equals(nome)) {
+                return jogadorConectado(participante.getToken());
+            }
+        }
+        return false;
+    }
 
 
     public String getCodigo() {

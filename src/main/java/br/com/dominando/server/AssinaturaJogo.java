@@ -25,10 +25,6 @@ public class AssinaturaJogo {
         this.observer = observer;
         this.executor = executor;
         this.remover = remover;
-
-        if (observer instanceof ServerCallStreamObserver<?> servidor) {
-            servidor.setOnCancelHandler(this::encerrar);
-        }
     }
 
     public void publicar(EstadoJogoResponse estado) {
@@ -86,6 +82,12 @@ public class AssinaturaJogo {
             remover.run();
 
             System.out.println("[STREAM] Assinatura encerrada. Token: " + token.substring(0, Math.min(6, token.length())) + "...");
+        }
+    }
+
+    public void registrarCancelamento() {
+        if (observer instanceof ServerCallStreamObserver<?> servidor) {
+            servidor.setOnCancelHandler(this::encerrar);
         }
     }
 
