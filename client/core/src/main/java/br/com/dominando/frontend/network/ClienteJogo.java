@@ -12,7 +12,11 @@ import br.com.dominando.grpc.EntrarSalaRequest;
 import br.com.dominando.grpc.EntrarSalaResponse;
 import br.com.dominando.grpc.IniciarPartidaRequest;
 import br.com.dominando.grpc.IniciarPartidaResponse;
+import br.com.dominando.grpc.EstadoJogoRequest;
+import br.com.dominando.grpc.EstadoJogoResponse;
 
+import io.grpc.Context;
+import io.grpc.Status;
 import io.grpc.ManagedChannel;
 import io.grpc.okhttp.OkHttpChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -26,6 +30,7 @@ public final class ClienteJogo implements Disposable {
     private final ManagedChannel channel;
     private final DesceUmaServiceGrpc.DesceUmaServiceStub stub;
     private volatile boolean disposed;
+    private Context.CancellableContext acompanhamento;
 
     public ClienteJogo(String host, int porta) {
         channel = OkHttpChannelBuilder.forAddress(host, porta).usePlaintext().build();
@@ -50,6 +55,67 @@ public final class ClienteJogo implements Disposable {
     public void iniciarPartida(String codigo, String token, Consumer<IniciarPartidaResponse> sucesso, Consumer<Throwable> erro) {
         IniciarPartidaRequest request = IniciarPartidaRequest.newBuilder().setCodigoSala(codigo).setTokenCriador(token).build();
         stub.withDeadlineAfter(8, TimeUnit.SECONDS).iniciarPartida(request, observar(sucesso, erro));
+    }
+
+    public void acompanharJogo(String codigo, String token, Consumer<EstadoJogoResponse> receber, Consumer<Throwable> erro) {
+        if (disposed) {
+            return;
+        }
+
+        pararAcompanhamento();
+        Context.CancellableContext contexto = Context.ROOT.withCancellation();
+
+        acompanhamento = contexto;
+        EstadoJogoRequest request = EstadoJogoRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).build();
+
+        StreamObserver<EstadoJogoResponse> observador =
+            new StreamObserver<EstadoJogoResponse>() {
+                @Override
+                public void onNext(EstadoJogoResponse estado) {
+                    Gdx.app.postRunnable(() -> {
+                        if (!disposed && acompanhamento == contexto) {
+                            receber.accept(estado);
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(Throwable falha) {
+                    finalizar(falha);
+                }
+
+                @Override
+                public void onCompleted() {
+                    finalizar(Status.UNAVAILABLE.withDescription("Acompanhamento encerrado.").asRuntimeException());
+                }
+
+                private void finalizar(Throwable falha) {
+                    Gdx.app.postRunnable(() -> {
+                        if (disposed || acompanhamento != contexto) {
+                            return;
+                        }
+
+                        acompanhamento = null;
+                        contexto.cancel(null);
+                        erro.accept(falha);
+                    });
+                }
+            };
+
+        try {
+            contexto.run(() -> stub.acompanharJogo(request, observador));
+        } catch (RuntimeException falha) {
+            observador.onError(falha);
+        }
+    }
+
+    public void pararAcompanhamento() {
+        Context.CancellableContext anterior = acompanhamento;
+        acompanhamento = null;
+
+        if (anterior != null) {
+            anterior.cancel(null);
+        }
     }
 
     private <T> StreamObserver<T> observar(Consumer<T> sucesso, Consumer<Throwable> erro) {
@@ -85,6 +151,7 @@ public final class ClienteJogo implements Disposable {
         }
 
         disposed = true;
+        pararAcompanhamento();
         channel.shutdownNow();
     }
 }
