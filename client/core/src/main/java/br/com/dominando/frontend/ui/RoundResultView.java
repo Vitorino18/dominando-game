@@ -270,6 +270,14 @@ public final class RoundResultView extends Group implements Disposable {
         reveal();
     }
 
+    public void showOnlineMatchWinner(boolean humanWon, int human, int opponent) {
+        showMatchWinner(humanWon, human, opponent);
+
+        finalReceipt.playAgainButton.setVisible(false);
+        finalReceipt.returnToStartButton.setText("VOLTAR ÀS MESAS");
+        finalReceipt.receiptFooter.setText("Bora outra? Crie uma nova mesa.");
+    }
+
     public boolean isFinalReceiptVisible() {
         return isVisible() && finalReceipt.isVisible();
     }

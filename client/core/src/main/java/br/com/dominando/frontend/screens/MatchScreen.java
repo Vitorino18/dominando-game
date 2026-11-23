@@ -187,6 +187,8 @@ public class MatchScreen extends ScreenAdapter {
     private Runnable onComprarPecaOnline;
     private boolean onlineBoughtThisTurn;
     private Runnable onPassarVezOnline;
+    private boolean onlineShowingResult;
+    private boolean onlineFinalShown;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
@@ -236,7 +238,9 @@ public class MatchScreen extends ScreenAdapter {
         return canSelectOnline()
             && !onlineBoughtThisTurn
             && onlineState.getPecasBaralho() > 0
-            && !temEncaixeOnline();
+            && !temEncaixeOnline()
+            && !onlineShowingResult
+            && !onlineFinalShown;
     }
 
     private void comprarPecaOnline() {
@@ -251,6 +255,37 @@ public class MatchScreen extends ScreenAdapter {
         aplicarEstadoOnline(onlineState);
 
         onComprarPecaOnline.run();
+    }
+
+    private String vencedorRodadaOnline(EstadoJogoResponse anterior, EstadoJogoResponse atual) {
+        if (anterior == null) {
+            return null;
+        }
+
+        String vencedor = null;
+        int novasVitorias = 0;
+
+        for (JogadorMensagem jogador : atual.getJogadoresList()) {
+            for (JogadorMensagem antigo : anterior.getJogadoresList()) {
+                if (jogador.getNome().equals(antigo.getNome())) {
+                    int diferenca =
+                        jogador.getVitorias() - antigo.getVitorias();
+
+                    if (diferenca < 0) {
+                        return null;
+                    }
+
+                    if (diferenca > 0) {
+                        novasVitorias += diferenca;
+                        vencedor = jogador.getNome();
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return novasVitorias == 1 ? vencedor : null;
     }
 
     private boolean registrarCompraOnline(EstadoJogoResponse anterior, EstadoJogoResponse atual) {
@@ -280,6 +315,115 @@ public class MatchScreen extends ScreenAdapter {
 
     public void setOnPassarVezOnline(Runnable callback) {
         onPassarVezOnline = callback;
+    }
+
+    private void bloquearInteracaoOnline() {
+        stage.cancelTouchFocus();
+
+        gameHud.setTouchable(Touchable.disabled);
+        onlineHandsView.setSelectionEnabled(false);
+
+        cavaView.setTouchable(Touchable.disabled);
+        passButton.setAvailable(false);
+
+        leftEndPreview.setVisible(false);
+        rightEndPreview.setVisible(false);
+
+        playerInfoView.setActiveTurn(false);
+        opponentInfoView.setActiveTurn(false);
+    }
+
+    private void mostrarRodadaOnline(
+        boolean venceu,
+        int minhasTampinhas,
+        int tampinhasAdversario
+    ) {
+        onlineShowingResult = true;
+        bloquearInteracaoOnline();
+
+        onlineHandsView.setVisible(false);
+        cavaView.setVisible(false);
+        playerInfoView.setTurnPrompt("Rodada encerrada");
+
+        roundResultView.clearActions();
+        roundResultView.showWinningPlay(venceu);
+
+        roundResultView.addAction(Actions.sequence(
+            Actions.delay(1.2f),
+            Actions.run(() -> {
+                playerScoreView.setDisplayedScore(minhasTampinhas);
+                opponentScoreView.setDisplayedScore(
+                    tampinhasAdversario
+                );
+
+                roundResultView.showWinningCap(venceu);
+
+                if (venceu) {
+                    playRoundVictorySound();
+                }
+            }),
+            Actions.delay(2f),
+            Actions.fadeOut(0.25f, Interpolation.smooth),
+            Actions.run(this::terminarResultadoOnline)
+        ));
+    }
+
+    private void terminarResultadoOnline() {
+        onlineShowingResult = false;
+
+        roundResultView.setVisible(false);
+        roundResultView.getColor().a = 1f;
+
+        tilesLayer.clearActions();
+        limparMesaOnline();
+        onlineTable.clear();
+
+        movingStone = false;
+        onlineBoughtThisTurn = false;
+
+        onlineHandsView.setVisible(true);
+        gameHud.setTouchable(Touchable.childrenOnly);
+
+        boolean distribuir =
+            onlineState.getPecasMesaCount() == 0
+                && onlineState.getMinhaMaoCount() == 7
+                && onlineState.getPecasBaralho() == 14;
+
+        for (JogadorMensagem jogador : onlineState.getJogadoresList()) {
+            distribuir =
+                distribuir && jogador.getQuantidadePecas() == 7;
+        }
+
+        entranceFinished = false;
+
+        if (distribuir) {
+            entranceTime = ENTRANCE_DURATION;
+        }
+
+        aplicarEstadoOnline(onlineState);
+
+        if (distribuir) {
+            updateEntrance();
+            playShuffleSound();
+        } else {
+            // Se a rodada já avançou, exibe seu estado mais recente.
+            entranceFinished = true;
+            aplicarEstadoOnline(onlineState);
+        }
+    }
+
+    private void mostrarFinalOnline(int minhasTampinhas, int tampinhasAdversario) {
+        onlineShowingResult = false;
+        onlineFinalShown = true;
+
+        bloquearInteracaoOnline();
+        onlineHandsView.setVisible(false);
+        playerScoreView.setDisplayedScore(minhasTampinhas);
+        opponentScoreView.setDisplayedScore(tampinhasAdversario);
+        roundResultView.clearActions();
+        roundResultView.setVisible(false);
+
+        roundResultView.showOnlineMatchWinner(onlinePlayerName.equals(onlineState.getCampeao()), minhasTampinhas, tampinhasAdversario);
     }
 
     private boolean podePassarOnline() {
@@ -681,7 +825,31 @@ public class MatchScreen extends ScreenAdapter {
 
         EstadoJogoResponse anterior = onlineState;
         onlineState = estado;
+
+        atualizarConfirmacaoOnline();
+
+        if (onlineFinalShown) {
+            return;
+        }
+
+        if (estado.getCompeticaoEncerrada()) {
+            mostrarFinalOnline(local.getVitorias(), adversario.getVitorias());
+            return;
+        }
+
+        if (onlineShowingResult) {
+            return;
+        }
+
+        String vencedor = vencedorRodadaOnline(anterior, estado);
+
+        if (vencedor != null) {
+            mostrarRodadaOnline(onlinePlayerName.equals(vencedor), local.getVitorias(), adversario.getVitorias());
+            return;
+        }
+
         boolean compraRecebida = registrarCompraOnline(anterior, estado);
+
         if (entranceFinished && foiPasseAdversarioOnline(anterior, estado)) {
             tilesLayer.addAction(Actions.sequence(
                 Actions.run(this::playPassTap),
@@ -689,9 +857,8 @@ public class MatchScreen extends ScreenAdapter {
                 Actions.run(this::playPassTap)
             ));
         }
-        atualizarConfirmacaoOnline();
-        atualizarMesaOnline(estado.getPecasMesaList());
 
+        atualizarMesaOnline(estado.getPecasMesaList());
         onlineHandsView.setHands(estado.getMinhaMaoList(), adversario.getQuantidadePecas());
 
         if (entranceFinished && compraRecebida) {
@@ -1439,7 +1606,9 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
-        if (!matchIsFinished() || leavingResult) {
+        boolean encerrada = online ? onlineState != null && onlineState.getCompeticaoEncerrada() : matchIsFinished();
+
+        if (!encerrada || leavingResult) {
             return;
         }
 
@@ -2759,9 +2928,12 @@ public class MatchScreen extends ScreenAdapter {
 
         boolean ready = entranceTime >= PREPARATION_END;
 
-        tilesLayer.setVisible(ready);
+        boolean comandaFinal = roundResultView.isFinalReceiptVisible();
+
+        tilesLayer.setVisible(ready && !comandaFinal);
         hudLayer.setVisible(ready);
-        gameHud.setVisible(true);
+        gameHud.setVisible(!comandaFinal);
+
         redistributionMessage.setVisible(false);
         snackActionView.setVisible(false);
         refreshOnlinePreviews();
