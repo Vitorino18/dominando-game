@@ -76,6 +76,11 @@ public final class ClienteJogo implements Disposable {
         stub.withDeadlineAfter(8, TimeUnit.SECONDS).passarVez(request, observar(sucesso, erro));
     }
 
+    public void consultarEstadoJogo(String codigo, String token, Consumer<EstadoJogoResponse> sucesso, Consumer<Throwable> erro) {
+        EstadoJogoRequest request = EstadoJogoRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).build();
+        stub.withDeadlineAfter(3, TimeUnit.SECONDS).consultarEstadoJogo(request, observar(sucesso, erro));
+    }
+
     public void acompanharJogo(String codigo, String token, Consumer<EstadoJogoResponse> receber, Consumer<Throwable> erro) {
         if (disposed) {
             return;

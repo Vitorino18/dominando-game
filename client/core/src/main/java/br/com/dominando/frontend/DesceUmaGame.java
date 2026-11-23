@@ -56,6 +56,10 @@ public class DesceUmaGame extends Game {
     private boolean falhaStreamingDefinitiva;
     private float tempoReconexaoStreaming;
 
+    private float tempoVerificacaoConexao;
+    private boolean verificacaoConexaoEmAndamento;
+    private boolean conexaoInterrompida;
+
     private int versaoSessao;
 
     @Override
@@ -73,6 +77,9 @@ public class DesceUmaGame extends Game {
     private void showPairing() {
         versaoSessao++;
         clienteJogo.pararAcompanhamento();
+        tempoVerificacaoConexao = 0f;
+        verificacaoConexaoEmAndamento = false;
+        conexaoInterrompida = false;
         acompanhandoJogo = false;
         ultimoEstadoJogo = null;
         partidaIniciada = false;
@@ -146,6 +153,80 @@ public class DesceUmaGame extends Game {
         );
     }
 
+    private void verificarConexaoPartida() {
+        if (!partidaIniciada
+            || matchScreen == null
+            || getScreen() != matchScreen
+            || !audioInForeground
+            || falhaStreamingDefinitiva
+            || verificacaoConexaoEmAndamento
+            || ultimoEstadoJogo == null
+            || ultimoEstadoJogo.getCompeticaoEncerrada()) {
+            return;
+        }
+
+        tempoVerificacaoConexao -= Gdx.graphics.getDeltaTime();
+
+        if (tempoVerificacaoConexao > 0f) {
+            return;
+        }
+
+        verificacaoConexaoEmAndamento = true;
+
+        int sessao = versaoSessao;
+        MatchScreen tela = matchScreen;
+        EstadoJogoResponse estadoAoConsultar = ultimoEstadoJogo;
+
+        clienteJogo.consultarEstadoJogo(codigoSala, tokenJogador, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                verificacaoConexaoEmAndamento = false;
+                tempoVerificacaoConexao = 3f;
+
+                if (falhaStreamingDefinitiva || ultimoEstadoJogo.getCompeticaoEncerrada()) {
+                    return;
+                }
+
+                if (conexaoInterrompida) {
+                    conexaoInterrompida = false;
+
+                    tela.setOnlineConnectionMessage("Sincronizando...");
+
+                    clienteJogo.pararAcompanhamento();
+                    acompanhandoJogo = false;
+                    tempoReconexaoStreaming = 0f;
+                }
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                verificacaoConexaoEmAndamento = false;
+                tempoVerificacaoConexao = 3f;
+
+                if (falhaStreamingDefinitiva || ultimoEstadoJogo.getCompeticaoEncerrada() || ultimoEstadoJogo != estadoAoConsultar) {
+                    return;
+                }
+
+                Status.Code codigo = Status.fromThrowable(erro).getCode();
+                boolean temporario = codigo == Status.Code.UNAVAILABLE || codigo == Status.Code.DEADLINE_EXCEEDED || codigo == Status.Code.CANCELLED;
+
+                if (temporario) {
+                    conexaoInterrompida = true;
+                    tela.setOnlineConnectionMessage("Reconectando...");
+                } else {
+                    falhaStreamingDefinitiva = true;
+                    clienteJogo.pararAcompanhamento();
+                    acompanhandoJogo = false;
+                    tela.setOnlineConnectionMessage("Mesa indisponível. Volte.");
+                }
+            }
+        );
+    }
+
     private void atualizarStreaming() {
         if (!partidaIniciada
             || waitingScreen == null
@@ -186,6 +267,7 @@ public class DesceUmaGame extends Game {
                     return;
                 }
 
+                conexaoInterrompida = false;
                 ultimoEstadoJogo = estado;
 
                 if (matchScreen == null) {
@@ -251,6 +333,9 @@ public class DesceUmaGame extends Game {
     private void showWaiting(String codigo, String token, String nome, boolean criador) {
         versaoSessao++;
         clienteJogo.pararAcompanhamento();
+        tempoVerificacaoConexao = 0f;
+        verificacaoConexaoEmAndamento = false;
+        conexaoInterrompida = false;
         ultimoEstadoJogo = null;
         acompanhandoJogo = false;
         falhaStreamingDefinitiva = false;
@@ -497,6 +582,7 @@ public class DesceUmaGame extends Game {
     public void render() {
         super.render();
         atualizarEspera();
+        verificarConexaoPartida();
         atualizarStreaming();
         updateMenuMusic();
         GameAudio.update();
