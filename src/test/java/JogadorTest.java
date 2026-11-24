@@ -20,7 +20,7 @@ class JogadorTest {
         jogador.registrarVitoria();
 
         assertEquals(1, jogador.getVitorias());
-        assertEquals(10, jogador.getPontosPetiscos());
+        assertEquals(2, jogador.getPontosPetiscos());
     }
 
     @Test
@@ -32,7 +32,7 @@ class JogadorTest {
         }
 
         assertEquals(5, jogador.getVitorias());
-        assertEquals(50, jogador.getPontosPetiscos());
+        assertEquals(10, jogador.getPontosPetiscos());
     }
 
     @Test

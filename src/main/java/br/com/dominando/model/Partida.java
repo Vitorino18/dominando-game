@@ -20,6 +20,7 @@ public class Partida {
     private final Jogador jogadorInicial;
     private final List<Jogador> jogadores;
 
+    private boolean turnoIniciado;
 
     public Partida(List<String> nomesJogadores) {
         this(criarJogadores(nomesJogadores), null);
@@ -77,6 +78,7 @@ public class Partida {
         }
 
         comprouNoTurno = false;
+        turnoIniciado = false;
     }
 
     public ResultadoJogada jogar(Peca peca, LadoMesa lado) {
@@ -121,7 +123,9 @@ public class Partida {
         }
 
         jogador.comprarDoBaralho(baralho);
+
         comprouNoTurno = true;
+        turnoIniciado = true;
 
         return ResultadoJogada.COMPRA_REALIZADA;
     }
@@ -202,12 +206,20 @@ public class Partida {
         return pontuacaoService.calcularPontosRodada(jogadores, vencedor);
     }
 
+    public boolean isTurnoIniciado() {
+        return turnoIniciado;
+    }
+    public boolean primeiraJogadaRealizada() {
+        return !mesa.getPecasMesa().isEmpty();
+    }
+
 
     // MÉTODOS PRIVADOS //
 
     private void finalizarTurno() {
         turnoService.proximoTurno(jogadores.size());
         comprouNoTurno = false;
+        turnoIniciado = false;
     }
 
     private void definirPrimeiroJogador() {
