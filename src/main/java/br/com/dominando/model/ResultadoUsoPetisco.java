@@ -1,0 +1,17 @@
+package br.com.dominando.model;
+
+public enum ResultadoUsoPetisco {
+    PETISCO_UTILIZADO,
+    PETISCO_INDISPONIVEL,
+    PETISCO_INVALIDO,
+
+    JOGADOR_INVALIDO,
+    FASE_INVALIDA,
+    PECA_INVALIDA,
+
+    NAO_E_SUA_VEZ,
+    TURNO_JA_INICIADO,
+    BARALHO_VAZIO,
+    ADVERSARIO_SEM_PECAS,
+    JOGADOR_JA_PREPARADO
+}

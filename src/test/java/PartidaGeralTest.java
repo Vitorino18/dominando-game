@@ -77,7 +77,7 @@ public class PartidaGeralTest {
         geral.verificarFimPartida();
 
         assertEquals(1, vencedor.getVitorias());
-        assertEquals(10, vencedor.getPontosPetiscos());
+        assertEquals(2, vencedor.getPontosPetiscos());
         assertSame(vencedor, geral.getVencedorAnterior());
     }
 

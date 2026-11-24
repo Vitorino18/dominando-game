@@ -11,15 +11,19 @@ public class Jogador {
     private final List<Peca> mao;
     private int vitorias;
     private int pontosPetiscos;
+    private final InventarioPetiscos inventarioPetiscos;
+
+    private static final int MOEDAS_POR_VITORIA = 2;
 
     public Jogador(String nome){
         this.nome = nome;
         this.pontuacao = 0;
         this.erros = 0;
         this.mao = new ArrayList<>();
-
         this.vitorias = 0;
         this.pontosPetiscos = 0;
+
+        this.inventarioPetiscos = new InventarioPetiscos();
     }
 
     public boolean removerPeca(Peca peca){
@@ -58,12 +62,49 @@ public class Jogador {
 
     public void registrarVitoria() {
         vitorias++;
-        pontosPetiscos += 10;
+        pontosPetiscos += MOEDAS_POR_VITORIA;
     }
 
     public void limparMao() {
         mao.clear();
     }
+
+    public boolean possuiSaldo(int custo) {
+        return custo >= 0 && pontosPetiscos >= custo;
+    }
+
+    public boolean gastarPontosPetiscos(int custo) {
+        if (custo <= 0 || !possuiSaldo(custo)) {
+            return false;
+        }
+        pontosPetiscos -= custo;
+        return true;
+    }
+
+    // OS METODOS DOS PETISCOS //
+    public void adicionarPeca(Peca peca) {
+        if (peca == null) {
+            throw new IllegalArgumentException("A peça não pode ser nula.");
+        }
+        mao.add(peca);
+    }
+
+    public Peca substituirPeca(int indice, Peca novaPeca) {
+        if (indice < 0 || indice >= mao.size()) {
+            throw new IllegalArgumentException("Índice de peça inválido.");
+        }
+        if (novaPeca == null) {
+            throw new IllegalArgumentException("A nova peça não pode ser nula.");
+        }
+        return mao.set(indice, novaPeca);
+    }
+
+    public List<Peca> retirarTodasPecas() {
+        List<Peca> pecasRetiradas = new ArrayList<>(mao);
+        mao.clear();
+        return pecasRetiradas;
+    }
+    // OS METODOS DOS PETISCOS //
 
     // gets //
     public String getNome() {
@@ -91,6 +132,9 @@ public class Jogador {
     }
     public int getVitorias() {
         return vitorias;
+    }
+    public InventarioPetiscos getInventarioPetiscos() {
+        return inventarioPetiscos;
     }
 
     @Override

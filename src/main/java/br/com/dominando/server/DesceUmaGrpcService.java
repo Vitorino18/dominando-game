@@ -164,6 +164,77 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
         }
     }
 
+    private TipoPetiscos converterTipoPetisco(TipoPetiscoMensagem tipo) {
+        return switch (tipo) {
+            case OVO_COLORIDO -> TipoPetiscos.OVO_COLORIDO;
+            case COXINHA -> TipoPetiscos.COXINHA;
+            case TORRESMO -> TipoPetiscos.TORRESMO;
+            default -> throw new IllegalArgumentException("Tipo de petisco inválido.");
+        };
+    }
+
+    @Override
+    public void comprarPetisco(ComprarPetiscoRequest request, StreamObserver<ComprarPetiscoResponse> responseObserver) {
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            TipoPetiscos tipo = converterTipoPetisco(request.getTipo());
+
+            ResultadoPetiscosLoja resultado = sala.comprarPetisco(request.getTokenJogador(), tipo);
+
+            ComprarPetiscoResponse resposta = ComprarPetiscoResponse.newBuilder().setResultado(resultado.name()).build();
+
+            responseObserver.onNext(resposta);
+            responseObserver.onCompleted();
+
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void utilizarPetisco(UtilizarPetiscoRequest request, StreamObserver<UtilizarPetiscoResponse> responseObserver) {
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+
+            TipoPetiscos tipo = converterTipoPetisco(request.getTipo());
+
+            Integer indicePeca = request.hasIndicePeca() ? request.getIndicePeca() : null;
+
+            UsoPetisco uso = sala.utilizarPetisco(request.getTokenJogador(), tipo, indicePeca);
+
+            UtilizarPetiscoResponse.Builder resposta = UtilizarPetiscoResponse.newBuilder().setResultado(uso.resultado().name());
+
+            if (uso.sucesso() && uso.pecaRevelada() != null) {
+                Peca peca = uso.pecaRevelada();
+                PecaMensagem pecaMensagem = PecaMensagem.newBuilder().setLadoA(peca.getLadoA()).setLadoB(peca.getLadoB()).build();
+
+                resposta.setPecaRevelada(pecaMensagem);
+                resposta.setDuracaoRevelacaoSegundos(uso.duracaoRevelacaoSegundos());
+            }
+
+            responseObserver.onNext(resposta.build());
+            responseObserver.onCompleted();
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
+    @Override
+    public void confirmarPreparacao(AcaoSimplesRequest request, StreamObserver<ConfirmarPreparacaoResponse> responseObserver) {
+        try {
+            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            boolean confirmado = sala.confirmarPreparacao(request.getTokenJogador());
+
+            ConfirmarPreparacaoResponse resposta = ConfirmarPreparacaoResponse.newBuilder().setConfirmado(confirmado).build();
+
+            responseObserver.onNext(resposta);
+            responseObserver.onCompleted();
+        } catch (RuntimeException e) {
+            responderErro(responseObserver, e);
+        }
+    }
+
     @Override
     public void passarVez(AcaoSimplesRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
 

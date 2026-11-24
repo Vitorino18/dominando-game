@@ -35,6 +35,16 @@ service DesceUmaService {
 
   rpc AcompanharJogo (EstadoJogoRequest)
       returns (stream EstadoJogoResponse);
+
+  rpc ComprarPetisco (ComprarPetiscoRequest)
+      returns (ComprarPetiscoResponse);
+
+  rpc UtilizarPetisco (UtilizarPetiscoRequest)
+      returns (UtilizarPetiscoResponse);
+
+  rpc ConfirmarPreparacao (AcaoSimplesRequest)
+      returns (ConfirmarPreparacaoResponse);
+
 }
 
 // Criar uma sala //
@@ -118,6 +128,8 @@ message JogadorMensagem {
   int32 vitorias = 4;
   int32 gatos = 5;
   int32 pontos_petiscos = 6;
+  bool conectado = 7;
+  bool preparado = 8;
 }
 
 message EstadoJogoRequest {
@@ -135,4 +147,73 @@ message EstadoJogoResponse {
 
   bool competicao_encerrada = 6;
   string campeao = 7;
+
+  // Controle da competição //
+  int32 numero_rodada = 8;
+  FasePartidaMensagem fase = 9;
+
+  // Controle da loja //
+  int64 tempo_loja_restante_segundos = 10;
+  repeated PetiscoLojaMensagem petiscos_loja = 11;
+
+  // Controle da preparação //
+  int64 tempo_preparacao_restante_segundos = 12;
+
+  // Informações privadas do jogador //
+  TipoPetiscoMensagem meu_petisco = 13;
+  bool posso_utilizar_petisco = 14;
+  bool ja_comprei_nesta_loja = 15;
+  bool estou_preparado = 16;
 }
+
+message ComprarPetiscoRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+  TipoPetiscoMensagem tipo = 3;
+}
+message ComprarPetiscoResponse {
+  string resultado = 1;
+}
+
+message UtilizarPetiscoRequest {
+  string codigo_sala = 1;
+  string token_jogador = 2;
+  TipoPetiscoMensagem tipo = 3;
+  optional int32 indice_peca = 4;
+}
+message UtilizarPetiscoResponse {
+  string resultado = 1;
+  PecaMensagem peca_revelada = 2;
+  int32 duracao_revelacao_segundos = 3;
+}
+
+message ConfirmarPreparacaoResponse {
+  bool confirmado = 1;
+}
+
+message PetiscoLojaMensagem {
+  TipoPetiscoMensagem tipo = 1;
+  string nome = 2;
+  string descricao = 3;
+  int32 custo = 4;
+  bool pode_comprar = 5;
+  string motivo_indisponibilidade = 6;
+}
+
+
+enum TipoPetiscoMensagem {
+  PETISCO_NAO_INFORMADO = 0;
+  OVO_COLORIDO = 1;
+  COXINHA = 2;
+  TORRESMO = 3;
+}
+
+enum FasePartidaMensagem {
+  NAO_INICIADA = 0;
+  EM_ANDAMENTO = 1;
+  LOJA_PETISCOS = 2;
+  PREPARACAO_RODADA = 3;
+  ENCERRADA = 4;
+}
+
+
