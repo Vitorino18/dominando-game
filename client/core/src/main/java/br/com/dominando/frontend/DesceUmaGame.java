@@ -459,6 +459,7 @@ public class DesceUmaGame extends Game {
             matchScreen.setOnPassarVezOnline(this::passarVezOnline);
             matchScreen.setOnComprarPetiscoOnline(this::comprarPetiscoOnline);
             matchScreen.setOnUsarOvoOnline(this::usarOvoOnline);
+            matchScreen.setOnUsarCoxinhaOnline(this::usarCoxinhaOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -497,6 +498,44 @@ public class DesceUmaGame extends Game {
 
                 Gdx.app.log("Rede", "Uso do Ovo sem confirmação: " + Status.fromThrowable(erro).getCode());
                 tela.falharUsoOvoOnline(rodada);
+            }
+        );
+    }
+
+    private void usarCoxinhaOnline(int indicePeca) {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null
+            || getScreen() != tela
+            || ultimoEstadoJogo == null) {
+            return;
+        }
+
+        int rodada = ultimoEstadoJogo.getNumeroRodada();
+
+        clienteJogo.utilizarPetisco(codigoSala, tokenJogador, TipoPetiscoMensagem.COXINHA, indicePeca, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarUsoCoxinhaOnline(rodada, resposta.getResultado());
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                Gdx.app.log("Rede", "Uso da Coxinha sem confirmação: " + Status.fromThrowable(erro).getCode());
+
+                if (!tela.falharUsoCoxinhaOnline(rodada)) {
+                    return;
+                }
+
+                tela.setOnlineConnectionMessage("Sincronizando...");
+                clienteJogo.pararAcompanhamento();
+                acompanhandoJogo = false;
+                tempoReconexaoStreaming = 0f;
             }
         );
     }

@@ -69,6 +69,7 @@ import java.util.Random;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -206,6 +207,17 @@ public class MatchScreen extends ScreenAdapter {
     private long onlineRevealDeadlineNanos;
     private float onlineRevealDuration;
 
+    private IntConsumer onUsarCoxinhaOnline;
+    private boolean onlineChoosingCoxinha;
+    private int onlinePendingCoxinhaRound = -1;
+    private int onlineUsedCoxinhaRound = -1;
+    private int onlineCoxinhaIndex = -1;
+
+    private List<PecaMensagem> onlineCoxinhaHandBefore;
+    private final Rectangle onlineCoxinhaOrigin = new Rectangle();
+    private int onlineUncertainCoxinhaRound = -1;
+    private EstadoJogoResponse onlineCoxinhaStateAtError;
+
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
     }
@@ -252,6 +264,7 @@ public class MatchScreen extends ScreenAdapter {
 
     private boolean podeComprarOnline() {
         return canSelectOnline()
+            && !onlineChoosingCoxinha
             && !onlineBoughtThisTurn
             && onlineState.getPecasBaralho() > 0
             && !temEncaixeOnline()
@@ -580,6 +593,7 @@ public class MatchScreen extends ScreenAdapter {
 
     private boolean podePassarOnline() {
         return canSelectOnline()
+            && !onlineChoosingCoxinha
             && !temEncaixeOnline()
             && (onlineBoughtThisTurn || onlineState.getPecasBaralho() == 0);
     }
@@ -1034,6 +1048,7 @@ public class MatchScreen extends ScreenAdapter {
 
         atualizarMesaOnline(estado.getPecasMesaList());
         onlineHandsView.setHands(estado.getMinhaMaoList(), adversario.getQuantidadePecas());
+        atualizarTrocaCoxinhaOnline();
 
         if (entranceFinished && compraRecebida) {
             boolean compraLocal = onlinePlayerName.equals(estado.getJogadorDaVez());
@@ -1145,7 +1160,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void enviarJogadaOnline(Side side) {
-        if (!canSelectOnline() || onJogarPecaOnline == null) {
+        if (!canSelectOnline() || onlineChoosingCoxinha || onJogarPecaOnline == null) {
             return;
         }
 
@@ -1255,12 +1270,18 @@ public class MatchScreen extends ScreenAdapter {
             && onlinePlayerName.equals(onlineState.getJogadorDaVez())
             && onlineBeforePlay == null
             && onlinePendingEggRound == -1
+            && onlinePendingCoxinhaRound == -1
             && !movingStone
             && stage.getActors().peek() == hudLayer;
     }
 
     private void selecionarPecaOnline(int index) {
         if (!canSelectOnline()) {
+            return;
+        }
+
+        if (onlineChoosingCoxinha) {
+            solicitarTrocaCoxinhaOnline(index);
             return;
         }
 
@@ -1330,7 +1351,7 @@ public class MatchScreen extends ScreenAdapter {
         leftEndPreview.setVisible(false);
         rightEndPreview.setVisible(false);
 
-        if (!canSelectOnline()) {
+        if (!canSelectOnline() || onlineChoosingCoxinha) {
             return;
         }
 
@@ -1961,6 +1982,180 @@ public class MatchScreen extends ScreenAdapter {
         return !online && entranceFinished && !movingStone && !round.isFinished() && round.turn() == Player.HUMAN;
     }
 
+    public void setOnUsarCoxinhaOnline(IntConsumer callback) {
+        onUsarCoxinhaOnline = callback;
+    }
+
+    private boolean canUseCoxinhaOnline() {
+        return onUsarCoxinhaOnline != null
+            && canSelectOnline()
+            && !intervalView.isVisible()
+            && onlineState.getMeuPetisco()
+            == TipoPetiscoMensagem.COXINHA
+            && onlineState.getPossoUtilizarPetisco()
+            && onlineState.getPecasBaralho() > 0
+            && onlineUsedCoxinhaRound != onlineState.getNumeroRodada()
+            && onlineUncertainCoxinhaRound != onlineState.getNumeroRodada();
+    }
+
+    public void confirmarUsoCoxinhaOnline(int rodada, String resultado) {
+        if (onlinePendingCoxinhaRound != rodada
+            || onlineState == null
+            || onlineState.getNumeroRodada() != rodada) {
+            return;
+        }
+
+        if ("PETISCO_UTILIZADO".equals(resultado)) {
+            onlineUsedCoxinhaRound = rodada;
+
+            aplicarEstadoOnline(onlineState);
+            return;
+        }
+
+        onlinePendingCoxinhaRound = -1;
+        onlineChoosingCoxinha = false;
+        onlineCoxinhaHandBefore = null;
+        onlineCoxinhaIndex = -1;
+        onlineCoxinhaStateAtError = null;
+        onlineActionMessage = "Petisco não utilizado";
+
+        Gdx.app.log("Petisco", resultado);
+        aplicarEstadoOnline(onlineState);
+    }
+
+    public boolean falharUsoCoxinhaOnline(int rodada) {
+        if (onlinePendingCoxinhaRound != rodada
+            || onlineState == null
+            || onlineState.getNumeroRodada() != rodada) {
+            return false;
+        }
+
+        onlineUncertainCoxinhaRound = rodada;
+        onlineCoxinhaStateAtError = onlineState;
+        onlineActionMessage = "Sincronizando troca...";
+
+        aplicarEstadoOnline(onlineState);
+        return true;
+    }
+
+    private void atualizarTrocaCoxinhaOnline() {
+        if (onlineState == null
+            || onlineCoxinhaHandBefore == null
+            || onlinePendingCoxinhaRound
+            != onlineState.getNumeroRodada()
+            || onlineState.getFase()
+            != FasePartidaMensagem.EM_ANDAMENTO) {
+            return;
+        }
+
+        int rodada = onlineState.getNumeroRodada();
+        int index = onlineCoxinhaIndex;
+
+        boolean indiceValido = index >= 0
+                && index < onlineCoxinhaHandBefore.size()
+                && index < onlineState.getMinhaMaoCount();
+
+        boolean trocada = indiceValido && onlineCoxinhaHandBefore.size() == onlineState.getMinhaMaoCount() && !onlineCoxinhaHandBefore.get(index).equals(onlineState.getMinhaMao(index))
+                && onlineState.getMeuPetisco()
+                != TipoPetiscoMensagem.COXINHA;
+
+        boolean recebeuEstadoAposErro = onlineUncertainCoxinhaRound == rodada
+                && onlineCoxinhaStateAtError != null
+                && onlineState != onlineCoxinhaStateAtError;
+
+        if (!trocada && !recebeuEstadoAposErro) {
+            return;
+        }
+
+        PecaMensagem oferecida = indiceValido ? onlineCoxinhaHandBefore.get(index) : null;
+
+        Rectangle origem = new Rectangle(onlineCoxinhaOrigin);
+
+        onlinePendingCoxinhaRound = -1;
+        onlineChoosingCoxinha = false;
+        onlineCoxinhaHandBefore = null;
+        onlineCoxinhaIndex = -1;
+        onlineCoxinhaStateAtError = null;
+
+        if (trocada) {
+            onlineUsedCoxinhaRound = rodada;
+            onlineActionMessage = null;
+
+            animarTrocaCoxinhaOnline(index, oferecida, origem);
+        } else {
+            onlineActionMessage = "Uso sem confirmação";
+        }
+    }
+
+    private void animarTrocaCoxinhaOnline(int index, PecaMensagem oferecida, Rectangle origem) {
+        DominoTile nova = onlineHandsView.getTile(true, index);
+
+        if (nova == null || oferecida == null) {
+            return;
+        }
+
+        DominoTile devolvida = new DominoTile(dominoAssets, oferecida.getLadoA(), oferecida.getLadoB());
+        devolvida.setTouchable(Touchable.disabled);
+        devolvida.setBounds(origem.x, origem.y, origem.width, origem.height
+        );
+
+        tilesLayer.addActor(devolvida);
+
+        devolvida.addAction(Actions.sequence(
+            Actions.parallel(
+                Actions.moveTo(CAVA_X + 70f * CAVA_SCALE, CAVA_Y + 30f * CAVA_SCALE, CHAIN_MOVE_DURATION, Interpolation.smooth),
+                Actions.sizeTo(44f, 82f, CHAIN_MOVE_DURATION, Interpolation.smooth)
+            ),
+            Actions.removeActor()
+        ));
+
+        animarCompraOnline(true, index);
+    }
+
+    private void alternarCoxinhaOnline() {
+        if (!canUseCoxinhaOnline()) {
+            return;
+        }
+
+        onUiClick.run();
+        onlineChoosingCoxinha = !onlineChoosingCoxinha;
+        onlineHandsView.setSelectedIndex(-1);
+
+        onlineActionMessage = onlineChoosingCoxinha ? "Escolha a peça" : null;
+
+        aplicarEstadoOnline(onlineState);
+    }
+
+    private void solicitarTrocaCoxinhaOnline(int index) {
+        if (!onlineChoosingCoxinha
+            || !canUseCoxinhaOnline()
+            || index < 0
+            || index >= onlineState.getMinhaMaoCount()) {
+            return;
+        }
+
+        DominoTile tile = onlineHandsView.getTile(true, index);
+
+        if (tile == null) {
+            return;
+        }
+
+        onlineCoxinhaIndex = index;
+        onlineCoxinhaHandBefore = new ArrayList<>(onlineState.getMinhaMaoList());
+
+        Vector2 origin = tile.localToAscendantCoordinates(tilesLayer, new Vector2(0f, 0f));
+
+        onlineCoxinhaOrigin.set(origin.x, origin.y, tile.getWidth(), tile.getHeight());
+        onlineChoosingCoxinha = false;
+        onlinePendingCoxinhaRound = onlineState.getNumeroRodada();
+        onlineActionMessage = "Trocando peça...";
+
+        onlineHandsView.setSelectedIndex(-1);
+        aplicarEstadoOnline(onlineState);
+
+        onUsarCoxinhaOnline.accept(index);
+    }
+
     public void setOnUsarOvoOnline(Runnable callback) {
         onUsarOvoOnline = callback;
     }
@@ -2103,7 +2298,7 @@ public class MatchScreen extends ScreenAdapter {
         snackActionView.highlightTile(tile, 1f);
     }
 
-    private void atualizarOvoOnline() {
+    private void atualizarPetiscosOnline() {
         if (onlineState == null) {
             return;
         }
@@ -2115,6 +2310,24 @@ public class MatchScreen extends ScreenAdapter {
 
             onlinePendingEggRound = -1;
             onlineActionMessage = null;
+        }
+
+        if (onlinePendingCoxinhaRound != -1
+            && onlinePendingCoxinhaRound != rodada) {
+
+            onlinePendingCoxinhaRound = -1;
+            onlineCoxinhaHandBefore = null;
+            onlineCoxinhaIndex = -1;
+            onlineActionMessage = null;
+        }
+
+        if (onlineChoosingCoxinha && !canUseCoxinhaOnline()) {
+            onlineChoosingCoxinha = false;
+            onlineHandsView.setSelectedIndex(-1);
+
+            if ("Escolha a peça".equals(onlineActionMessage)) {
+                onlineActionMessage = null;
+            }
         }
 
         boolean mostrar =
@@ -2133,11 +2346,29 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
-        boolean possuiOvo =
-            onlineState.getMeuPetisco()
-                == TipoPetiscoMensagem.OVO_COLORIDO
+        boolean possuiCoxinha = onlineState.getMeuPetisco() == TipoPetiscoMensagem.COXINHA
+                || onlineUsedCoxinhaRound == rodada
+                || onlinePendingCoxinhaRound == rodada;
+
+        boolean possuiOvo = onlineState.getMeuPetisco() == TipoPetiscoMensagem.OVO_COLORIDO
                 || onlineUsedEggRound == rodada
                 || onlinePendingEggRound == rodada;
+
+        if (possuiCoxinha) {
+            limparRevelacaoOvoOnline();
+            snackActionView.showSnack(Snack.COXINHA);
+            playerInfoView.setBackgroundVisible(false);
+
+            if (onlineUsedCoxinhaRound == rodada) {
+                snackActionView.showUsedSnack(Snack.COXINHA);
+            } else {
+                snackActionView.setButtonEnabled(
+                    canUseCoxinhaOnline()
+                );
+            }
+
+            return;
+        }
 
         snackActionView.showSnack(possuiOvo ? Snack.OVO : null);
         playerInfoView.setBackgroundVisible(!possuiOvo);
@@ -2145,16 +2376,20 @@ public class MatchScreen extends ScreenAdapter {
         if (onlineUsedEggRound == rodada) {
             snackActionView.showUsedEgg();
         } else {
-            snackActionView.setButtonEnabled(canUseOvoOnline());
+            snackActionView.setButtonEnabled(
+                canUseOvoOnline()
+            );
         }
 
         if (onlineRevealedTile != null) {
-            float restante = (onlineRevealDeadlineNanos - System.nanoTime()) / 1_000_000_000f;
+            float restante =
+                (onlineRevealDeadlineNanos - System.nanoTime()) / 1_000_000_000f;
 
             if (restante <= 0f || onlineUsedEggRound != rodada) {
                 limparRevelacaoOvoOnline();
             } else {
-                snackActionView.highlightTile(onlineRevealedTile, restante / onlineRevealDuration);
+                snackActionView.highlightTile(onlineRevealedTile, restante / onlineRevealDuration
+                );
             }
         }
     }
@@ -2177,7 +2412,12 @@ public class MatchScreen extends ScreenAdapter {
 
     private void useSnack() {
         if (online) {
-            usarOvoOnline();
+            if (onlineState != null && onlineState.getMeuPetisco() == TipoPetiscoMensagem.COXINHA) {
+                alternarCoxinhaOnline();
+            } else {
+                usarOvoOnline();
+            }
+
             return;
         }
 
@@ -3324,7 +3564,7 @@ public class MatchScreen extends ScreenAdapter {
         );
 
         redistributionMessage.setVisible(false);
-        atualizarOvoOnline();
+        atualizarPetiscosOnline();
         refreshOnlinePreviews();
         atualizarControlesOnline();
 
