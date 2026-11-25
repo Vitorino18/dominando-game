@@ -31,6 +31,7 @@ import com.badlogic.gdx.scenes.scene2d.actions.SequenceAction;
 import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 
 import br.com.dominando.frontend.settings.GameSettings;
 import br.com.dominando.frontend.ui.OpeningDialogs;
@@ -218,6 +219,19 @@ public class MatchScreen extends ScreenAdapter {
     private int onlineUncertainCoxinhaRound = -1;
     private EstadoJogoResponse onlineCoxinhaStateAtError;
 
+    private Runnable onUsarTorresmoOnline;
+    private Runnable onConfirmarPreparacaoOnline;
+
+    private int onlinePendingTorresmoRound = -1;
+    private int onlinePendingPreparationRound = -1;
+    private int onlineUsedTorresmoRound = -1;
+
+    private List<PecaMensagem> onlineTorresmoHandBefore;
+    private long onlinePreparationDeadlineNanos;
+    private TextButton onlineKeepHandButton;
+    private Texture onlineKeepHandTexture;
+    private Group onlineTorresmoAnimation;
+
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
     }
@@ -260,6 +274,166 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         return false;
+    }
+
+    public void setOnUsarTorresmoOnline(Runnable callback) {
+        onUsarTorresmoOnline = callback;
+    }
+
+    public void setOnConfirmarPreparacaoOnline(Runnable callback) {
+        onConfirmarPreparacaoOnline = callback;
+    }
+
+    private boolean podeDecidirPreparacaoOnline() {
+        return online
+            && onlineState != null
+            && entranceFinished
+            && onlineConnectionMessage == null
+            && !onlineShowingResult
+            && !onlineFinalShown
+            && !movingStone
+            && !intervalView.isVisible()
+            && !onlineState.getCompeticaoEncerrada()
+            && onlineState.getFase()
+            == FasePartidaMensagem.PREPARACAO_RODADA
+            && !onlineState.getEstouPreparado()
+            && onlineState.getMeuPetisco()
+            == TipoPetiscoMensagem.TORRESMO
+            && onlinePendingTorresmoRound == -1
+            && onlinePendingPreparationRound == -1
+            && stage.getActors().peek() == hudLayer
+            && onlineTorresmoAnimation == null
+            && tempoPreparacaoOnlineRestante() > 0f;
+    }
+
+    public void confirmarUsoTorresmoOnline(int rodada, String resultado) {
+        if (onlinePendingTorresmoRound != rodada
+            || onlineState == null
+            || onlineState.getNumeroRodada() != rodada) {
+            return;
+        }
+
+        if ("PETISCO_UTILIZADO".equals(resultado)) {
+            onlineUsedTorresmoRound = rodada;
+            aplicarEstadoOnline(onlineState);
+            return;
+        }
+
+        onlinePendingTorresmoRound = -1;
+        onlineTorresmoHandBefore = null;
+        onlineActionMessage = "Petisco não utilizado";
+
+        Gdx.app.log("Petisco", resultado);
+        aplicarEstadoOnline(onlineState);
+    }
+
+    public void confirmarPreparacaoOnline(int rodada, boolean confirmado) {
+        if (onlinePendingPreparationRound != rodada
+            || onlineState == null
+            || onlineState.getNumeroRodada() != rodada) {
+            return;
+        }
+
+        if (!confirmado) {
+            onlinePendingPreparationRound = -1;
+            onlineActionMessage = "Preparação não confirmada";
+        }
+
+        aplicarEstadoOnline(onlineState);
+    }
+
+    public boolean falharPreparacaoOnline(int rodada) {
+        if (onlineState == null
+            || onlineState.getNumeroRodada() != rodada
+            || (
+            onlinePendingTorresmoRound != rodada
+                && onlinePendingPreparationRound != rodada
+        )) {
+            return false;
+        }
+
+        onlineActionMessage = "Sincronizando preparo...";
+        aplicarEstadoOnline(onlineState);
+        return true;
+    }
+
+    private void atualizarDecisoesPreparacaoOnline() {
+        if (onlineState == null) {
+            return;
+        }
+
+        int rodada = onlineState.getNumeroRodada();
+        boolean preparando = onlineState.getFase() == FasePartidaMensagem.PREPARACAO_RODADA;
+
+        if (onlinePendingPreparationRound != -1 && (onlinePendingPreparationRound != rodada || onlineState.getEstouPreparado() || !preparando)) {
+            onlinePendingPreparationRound = -1;
+            onlineActionMessage = null;
+        }
+
+        if (onlinePendingTorresmoRound == -1) {
+            return;
+        }
+
+        if (onlinePendingTorresmoRound != rodada) {
+            onlinePendingTorresmoRound = -1;
+            onlineTorresmoHandBefore = null;
+            onlineActionMessage = null;
+            return;
+        }
+
+        boolean trocaRecebida = onlineState.getMeuPetisco() != TipoPetiscoMensagem.TORRESMO
+                && onlineState.getEstouPreparado()
+                && onlineState.getMinhaMaoCount() > 0
+                && (preparando || onlineState.getFase() == FasePartidaMensagem.EM_ANDAMENTO);
+
+        if (trocaRecebida) {
+            List<PecaMensagem> anteriores = onlineTorresmoHandBefore;
+
+            onlinePendingTorresmoRound = -1;
+            onlineTorresmoHandBefore = null;
+            onlineUsedTorresmoRound = rodada;
+            onlineActionMessage = null;
+
+            if (entranceFinished && anteriores != null) {
+                animarMaoTorresmoOnline(anteriores);
+            }
+
+            return;
+        }
+
+        if (!preparando) {
+            onlinePendingTorresmoRound = -1;
+            onlineTorresmoHandBefore = null;
+            onlineActionMessage = null;
+        }
+    }
+
+    private void usarTorresmoOnline() {
+        if (!podeDecidirPreparacaoOnline() || !onlineState.getPossoUtilizarPetisco() || onUsarTorresmoOnline == null) {
+            return;
+        }
+
+        onUiClick.run();
+        onlineHandsView.setSelectedIndex(-1);
+        onlineTorresmoHandBefore = new ArrayList<>(onlineState.getMinhaMaoList());
+        onlinePendingTorresmoRound = onlineState.getNumeroRodada();
+        onlineActionMessage = "Trocando mão...";
+
+        aplicarEstadoOnline(onlineState);
+        onUsarTorresmoOnline.run();
+    }
+
+    private void manterMaoOnline() {
+        if (!podeDecidirPreparacaoOnline() || onConfirmarPreparacaoOnline == null) {
+            return;
+        }
+
+        onUiClick.run();
+        onlinePendingPreparationRound = onlineState.getNumeroRodada();
+        onlineActionMessage = "Confirmando preparação...";
+
+        aplicarEstadoOnline(onlineState);
+        onConfirmarPreparacaoOnline.run();
     }
 
     private boolean podeComprarOnline() {
@@ -780,6 +954,28 @@ public class MatchScreen extends ScreenAdapter {
 
         controlsFont = createControlsFont();
 
+        onlineKeepHandTexture = new Texture(Gdx.files.internal("ui/interval/botao-compra.png"));
+        onlineKeepHandTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        TextureRegionDrawable keepHandBackground = new TextureRegionDrawable(new TextureRegion(onlineKeepHandTexture));
+        TextButton.TextButtonStyle keepHandStyle = new TextButton.TextButtonStyle(keepHandBackground, keepHandBackground, null, controlsFont);
+
+        keepHandStyle.fontColor = Color.valueOf("3F2412");
+        keepHandStyle.disabledFontColor = Color.valueOf("6B5840");
+
+        onlineKeepHandButton = new TextButton("Manter mão", keepHandStyle);
+        onlineKeepHandButton.getLabel().setFontScale(0.75f);
+        onlineKeepHandButton.setVisible(false);
+
+        onlineKeepHandButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                manterMaoOnline();
+            }
+        });
+
+        gameHud.addActor(onlineKeepHandButton);
+
         passButton = new PassButton(controlsFont);
         passButton.setPosition(134f, 48f);
         passButton.setAvailable(false);
@@ -956,6 +1152,142 @@ public class MatchScreen extends ScreenAdapter {
         return placement;
     }
 
+    private void animarMaoTorresmoOnline(List<PecaMensagem> anteriores) {
+        limparAnimacaoTorresmoOnline();
+
+        final Group animacao = new Group();
+        animacao.setTouchable(Touchable.disabled);
+
+        onlineTorresmoAnimation = animacao;
+        tilesLayer.addActor(animacao);
+        onlineHandsView.setSelectionEnabled(false);
+
+        int quantidade = onlineState.getMinhaMaoCount();
+
+        float cavaX = CAVA_X + 70f * CAVA_SCALE;
+        float cavaY = CAVA_Y + 30f * CAVA_SCALE;
+
+        float inicioEntrada =
+            0.35f + Math.max(0, anteriores.size() - 1) * 0.03f;
+
+        for (int i = 0; i < quantidade; i++) {
+            final DominoTile alvo = onlineHandsView.getTile(true, i);
+
+            if (alvo == null) {
+                continue;
+            }
+
+            Vector2 posicao = alvo.localToAscendantCoordinates(
+                tilesLayer,
+                new Vector2(0f, 0f)
+            );
+
+            float x = posicao.x;
+            float y = posicao.y;
+            float largura = alvo.getWidth();
+            float altura = alvo.getHeight();
+
+            alvo.setVisible(false);
+
+            if (i < anteriores.size()) {
+                PecaMensagem antiga = anteriores.get(i);
+
+                DominoTile devolvida = new DominoTile(
+                    dominoAssets,
+                    antiga.getLadoA(),
+                    antiga.getLadoB()
+                );
+
+                devolvida.setTouchable(Touchable.disabled);
+                devolvida.setBounds(x, y, largura, altura);
+                animacao.addActor(devolvida);
+
+                devolvida.addAction(Actions.sequence(
+                    Actions.delay(i * 0.03f),
+                    Actions.parallel(
+                        Actions.moveTo(
+                            cavaX, cavaY, 0.35f, Interpolation.smooth
+                        ),
+                        Actions.sizeTo(
+                            44f, 82f, 0.35f, Interpolation.smooth
+                        )
+                    ),
+                    Actions.removeActor()
+                ));
+            }
+
+            PecaMensagem recebida = onlineState.getMinhaMao(i);
+
+            DominoTile nova = new DominoTile(
+                dominoAssets,
+                recebida.getLadoA(),
+                recebida.getLadoB()
+            );
+
+            nova.setTouchable(Touchable.disabled);
+            nova.setBounds(cavaX, cavaY, 44f, 82f);
+            nova.setVisible(false);
+            animacao.addActor(nova);
+
+            nova.addAction(Actions.sequence(
+                Actions.delay(inicioEntrada + i * 0.05f),
+                Actions.visible(true),
+                Actions.run(() -> {
+                    GameAudio.play(dealSound, 0.45f);
+                }),
+                Actions.parallel(
+                    Actions.moveTo(
+                        x, y, CHAIN_MOVE_DURATION, Interpolation.smooth
+                    ),
+                    Actions.sizeTo(
+                        largura, altura,
+                        CHAIN_MOVE_DURATION, Interpolation.smooth
+                    )
+                ),
+                Actions.run(() -> alvo.setVisible(true)),
+                Actions.removeActor()
+            ));
+        }
+
+        float duracao =
+            inicioEntrada
+                + Math.max(0, quantidade - 1) * 0.05f
+                + CHAIN_MOVE_DURATION
+                + 0.03f;
+
+        animacao.addAction(Actions.sequence(
+            Actions.delay(duracao),
+            Actions.run(() -> {
+                if (onlineTorresmoAnimation != animacao) {
+                    return;
+                }
+
+                limparAnimacaoTorresmoOnline();
+                aplicarEstadoOnline(onlineState);
+            })
+        ));
+    }
+
+    private void limparAnimacaoTorresmoOnline() {
+        if (onlineTorresmoAnimation != null) {
+            onlineTorresmoAnimation.clearActions();
+            onlineTorresmoAnimation.remove();
+            onlineTorresmoAnimation = null;
+        }
+
+        if (onlineHandsView == null || onlineState == null) {
+            return;
+        }
+
+        for (int i = 0; i < onlineState.getMinhaMaoCount(); i++) {
+            DominoTile tile = onlineHandsView.getTile(true, i);
+
+            if (tile != null) {
+                tile.setVisible(true);
+            }
+        }
+    }
+
     private void limparMesaOnline() {
         for (DominoTile tile : chainActors.values()) {
             tile.clearActions();
@@ -1001,6 +1333,12 @@ public class MatchScreen extends ScreenAdapter {
                     && anterior.getNumeroRodada() == estado.getNumeroRodada();
 
             onlineShopDeadlineNanos = mesmaLoja ? Math.min(onlineShopDeadlineNanos, novoPrazo) : novoPrazo;
+        }
+
+        if (estado != anterior && estado.getFase() == FasePartidaMensagem.PREPARACAO_RODADA) {
+            long novoPrazo = System.nanoTime() + estado.getTempoPreparacaoRestanteSegundos() * 1_000_000_000L;
+            boolean mesmaPreparacao = anterior != null && anterior.getFase() == FasePartidaMensagem.PREPARACAO_RODADA && anterior.getNumeroRodada() == estado.getNumeroRodada();
+            onlinePreparationDeadlineNanos = mesmaPreparacao ? Math.min(onlinePreparationDeadlineNanos, novoPrazo) : novoPrazo;
         }
 
         atualizarConfirmacaoOnline();
@@ -1049,6 +1387,7 @@ public class MatchScreen extends ScreenAdapter {
         atualizarMesaOnline(estado.getPecasMesaList());
         onlineHandsView.setHands(estado.getMinhaMaoList(), adversario.getQuantidadePecas());
         atualizarTrocaCoxinhaOnline();
+        atualizarDecisoesPreparacaoOnline();
 
         if (entranceFinished && compraRecebida) {
             boolean compraLocal = onlinePlayerName.equals(estado.getJogadorDaVez());
@@ -1118,6 +1457,54 @@ public class MatchScreen extends ScreenAdapter {
             playerInfoView.setTurnPrompt(onlineActionMessage);
         } else if (onlineBeforePlay != null) {
             playerInfoView.setTurnPrompt("Confirmando jogada...");
+        }
+    }
+
+    private float tempoPreparacaoOnlineRestante() {
+        return Math.max(0f, (onlinePreparationDeadlineNanos - System.nanoTime()) / 1_000_000_000f);
+    }
+
+    private void atualizarPreparacaoOnline() {
+        onlineKeepHandButton.setVisible(false);
+
+        if (onlineState == null
+            || !entranceFinished
+            || onlineConnectionMessage != null
+            || onlineShowingResult
+            || onlineFinalShown
+            || intervalView.isVisible()
+            || onlineState.getFase()
+            != FasePartidaMensagem.PREPARACAO_RODADA) {
+            return;
+        }
+
+        int rodada = onlineState.getNumeroRodada();
+        boolean precisaEscolher = !onlineState.getEstouPreparado() && onlineState.getMeuPetisco() == TipoPetiscoMensagem.TORRESMO;
+
+        if (onlinePendingTorresmoRound == rodada) {
+            playerInfoView.setTurnPrompt("Trocando mão...");
+        } else if (onlinePendingPreparationRound == rodada) {
+            playerInfoView.setTurnPrompt("Confirmando...");
+        } else if (precisaEscolher) {
+            int segundos = (int) Math.ceil(
+                tempoPreparacaoOnlineRestante()
+            );
+
+            onlineKeepHandButton.setVisible(true);
+
+            boolean habilitado = podeDecidirPreparacaoOnline() && onConfirmarPreparacaoOnline != null;
+            onlineKeepHandButton.setDisabled(!habilitado);
+            onlineKeepHandButton.setColor(1f, 1f, 1f, habilitado ? 1f : 0.65f);
+
+            playerInfoView.setTurnPrompt(segundos > 0 ? "Trocar mão? " + segundos + "s" : "Encerrando preparo...");
+        } else {
+            playerInfoView.setTurnPrompt("Aguardando preparo");
+        }
+
+        for (JogadorMensagem jogador : onlineState.getJogadoresList()) {
+            if (!onlinePlayerName.equals(jogador.getNome()) && jogador.getConectado()) {
+                opponentInfoView.setTurnPrompt(jogador.getPreparado() ? "Preparado" : "Escolhendo a mão");
+            }
         }
     }
 
@@ -1271,8 +1658,11 @@ public class MatchScreen extends ScreenAdapter {
             && onlineBeforePlay == null
             && onlinePendingEggRound == -1
             && onlinePendingCoxinhaRound == -1
+            && onlinePendingTorresmoRound == -1
+            && onlinePendingPreparationRound == -1
             && !movingStone
-            && stage.getActors().peek() == hudLayer;
+            && stage.getActors().peek() == hudLayer
+            && onlineTorresmoAnimation == null;
     }
 
     private void selecionarPecaOnline(int index) {
@@ -1464,6 +1854,8 @@ public class MatchScreen extends ScreenAdapter {
         passButton.setPosition(opponentInfoView.getX() + (opponentInfoView.getWidth() - passButton.getWidth()) / 2f, bottom + margin);
 
         snackActionView.setPlayerAnchor(playerInfoView.getX(), playerInfoView.getY());
+
+        onlineKeepHandButton.setBounds(playerInfoView.getX() + 4f, playerInfoView.getY() + 128f, 200f, 64f);
     }
 
 
@@ -2336,13 +2728,41 @@ public class MatchScreen extends ScreenAdapter {
                 && !onlineShowingResult
                 && !onlineFinalShown
                 && !intervalView.isVisible()
-                && onlineState.getFase()
-                == FasePartidaMensagem.EM_ANDAMENTO;
+                && (onlineState.getFase() == FasePartidaMensagem.EM_ANDAMENTO || onlineState.getFase() == FasePartidaMensagem.PREPARACAO_RODADA);
+
 
         if (!mostrar) {
             limparRevelacaoOvoOnline();
             snackActionView.showSnack(null);
             playerInfoView.setBackgroundVisible(true);
+            return;
+        }
+
+        boolean possuiTorresmo =
+            (
+                onlineState.getMeuPetisco()
+                    == TipoPetiscoMensagem.TORRESMO
+                    && onlineState.getFase()
+                    == FasePartidaMensagem.PREPARACAO_RODADA
+            )
+                || onlineUsedTorresmoRound == rodada
+                || onlinePendingTorresmoRound == rodada;
+
+        if (possuiTorresmo) {
+            limparRevelacaoOvoOnline();
+            snackActionView.showSnack(Snack.TORRESMO);
+            playerInfoView.setBackgroundVisible(false);
+
+            if (onlineUsedTorresmoRound == rodada) {
+                snackActionView.showUsedSnack(Snack.TORRESMO);
+            } else {
+                snackActionView.setButtonEnabled(
+                    podeDecidirPreparacaoOnline()
+                        && onlineState.getPossoUtilizarPetisco()
+                        && onUsarTorresmoOnline != null
+                );
+            }
+
             return;
         }
 
@@ -2412,10 +2832,22 @@ public class MatchScreen extends ScreenAdapter {
 
     private void useSnack() {
         if (online) {
-            if (onlineState != null && onlineState.getMeuPetisco() == TipoPetiscoMensagem.COXINHA) {
-                alternarCoxinhaOnline();
-            } else {
-                usarOvoOnline();
+            if (onlineState == null) {
+                return;
+            }
+
+            switch (onlineState.getMeuPetisco()) {
+                case TORRESMO:
+                    usarTorresmoOnline();
+                    break;
+                case COXINHA:
+                    alternarCoxinhaOnline();
+                    break;
+                case OVO_COLORIDO:
+                    usarOvoOnline();
+                    break;
+                default:
+                    break;
             }
 
             return;
@@ -3523,7 +3955,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void renderOnline(float delta) {
-        float dt = Math.min(delta, 1f / 30f);
+        float dt = Math.max(0f, delta);
         float previousEntranceTime = entranceTime;
 
         entranceTime = Math.min(entranceTime + dt, PREPARATION_END);
@@ -3565,6 +3997,7 @@ public class MatchScreen extends ScreenAdapter {
 
         redistributionMessage.setVisible(false);
         atualizarPetiscosOnline();
+        atualizarPreparacaoOnline();
         refreshOnlinePreviews();
         atualizarControlesOnline();
 
@@ -3669,6 +4102,7 @@ public class MatchScreen extends ScreenAdapter {
     @Override
     public void hide() {
         GameAudio.stop(barAmbience);
+        limparAnimacaoTorresmoOnline();
         shuffleSound.stop();
         dealSound.stop();
         drawSound.stop();
@@ -3705,6 +4139,7 @@ public class MatchScreen extends ScreenAdapter {
         GameAudio.dispose(dealSound);
         GameAudio.dispose(shuffleSound);
         GameAudio.dispose(barAmbience);
+        onlineKeepHandTexture.dispose();
         stage.dispose();
         roundResultView.dispose();
         intervalView.dispose();

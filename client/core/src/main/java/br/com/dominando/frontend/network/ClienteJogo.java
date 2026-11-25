@@ -23,6 +23,7 @@ import br.com.dominando.grpc.ComprarPetiscoResponse;
 import br.com.dominando.grpc.TipoPetiscoMensagem;
 import br.com.dominando.grpc.UtilizarPetiscoRequest;
 import br.com.dominando.grpc.UtilizarPetiscoResponse;
+import br.com.dominando.grpc.ConfirmarPreparacaoResponse;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -40,6 +41,11 @@ public final class ClienteJogo implements Disposable {
     private final DesceUmaServiceGrpc.DesceUmaServiceStub stub;
     private volatile boolean disposed;
     private Context.CancellableContext acompanhamento;
+
+    public void confirmarPreparacao(String codigo, String token, Consumer<ConfirmarPreparacaoResponse> sucesso, Consumer<Throwable> erro) {
+        AcaoSimplesRequest request = AcaoSimplesRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).build();
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).confirmarPreparacao(request, observar(sucesso, erro));
+    }
 
     public ClienteJogo(String host, int porta) {
         channel = OkHttpChannelBuilder.forAddress(host, porta).usePlaintext().build();

@@ -460,6 +460,8 @@ public class DesceUmaGame extends Game {
             matchScreen.setOnComprarPetiscoOnline(this::comprarPetiscoOnline);
             matchScreen.setOnUsarOvoOnline(this::usarOvoOnline);
             matchScreen.setOnUsarCoxinhaOnline(this::usarCoxinhaOnline);
+            matchScreen.setOnUsarTorresmoOnline(this::usarTorresmoOnline);
+            matchScreen.setOnConfirmarPreparacaoOnline(this::confirmarPreparacaoOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -500,6 +502,65 @@ public class DesceUmaGame extends Game {
                 tela.falharUsoOvoOnline(rodada);
             }
         );
+    }
+
+    private void usarTorresmoOnline() {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null
+            || getScreen() != tela
+            || ultimoEstadoJogo == null) {
+            return;
+        }
+
+        int rodada = ultimoEstadoJogo.getNumeroRodada();
+
+        clienteJogo.utilizarPetisco(codigoSala, tokenJogador, TipoPetiscoMensagem.TORRESMO, null, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarUsoTorresmoOnline(rodada, resposta.getResultado());
+            },
+            erro -> sincronizarPreparacaoAposFalha(tela, sessao, rodada, erro)
+        );
+    }
+
+    private void confirmarPreparacaoOnline() {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null
+            || getScreen() != tela
+            || ultimoEstadoJogo == null) {
+            return;
+        }
+
+        int rodada = ultimoEstadoJogo.getNumeroRodada();
+
+        clienteJogo.confirmarPreparacao(codigoSala, tokenJogador, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarPreparacaoOnline(rodada, resposta.getConfirmado());
+            },
+            erro -> sincronizarPreparacaoAposFalha(tela, sessao, rodada, erro)
+        );
+    }
+
+    private void sincronizarPreparacaoAposFalha(MatchScreen tela, int sessao, int rodada, Throwable erro) {
+        if (sessao != versaoSessao || matchScreen != tela || !tela.falharPreparacaoOnline(rodada)) {
+            return;
+        }
+
+        Gdx.app.log("Rede", "Preparação sem confirmação: " + Status.fromThrowable(erro).getCode());
+        tela.setOnlineConnectionMessage("Sincronizando...");
+
+        clienteJogo.pararAcompanhamento();
+        acompanhandoJogo = false;
+        tempoReconexaoStreaming = 0f;
     }
 
     private void usarCoxinhaOnline(int indicePeca) {
