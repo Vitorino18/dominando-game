@@ -31,7 +31,7 @@ public class PartidaGeral {
     private long prazoPreparacaoNanos;
 
     // quantidades de tampinha total para vencer //
-    private static final int LIMITE_VITORIAS = 5;
+    private static final int LIMITE_VITORIAS = Integer.parseInt(System.getenv().getOrDefault("DESCEUMA_LIMITE_VITORIAS", "5"));
     public static final int DURACAO_PREPARACAO_SEGUNDOS = 15;
 
     public PartidaGeral(List<String> nomesJogadores) {
