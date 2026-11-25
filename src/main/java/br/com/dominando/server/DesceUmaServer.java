@@ -4,6 +4,7 @@ import io.grpc.ServerBuilder;
 
 import java.io.IOException;
 
+// servidor rodando com apenas o mesmo wifi //
 public class DesceUmaServer {
     private static final int PORTA = 50051;
 
