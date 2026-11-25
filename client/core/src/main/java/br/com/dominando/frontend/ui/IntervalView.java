@@ -19,7 +19,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
-
+import br.com.dominando.grpc.PetiscoLojaMensagem;
+import br.com.dominando.grpc.TipoPetiscoMensagem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,6 +99,10 @@ public final class IntervalView extends Group implements Disposable {
 
     private final Group trayScene = new Group();
     private final Image trayBackground;
+
+    private boolean onlineMode;
+    private Consumer<Snack> onOnlinePurchaseRequested;
+    private final List<PetiscoLojaMensagem> onlineOffers = new ArrayList<>();
 
 
     private BitmapFont createFont(String file, int size) {
@@ -298,6 +303,152 @@ public final class IntervalView extends Group implements Disposable {
         refreshOffers();
         refreshClock();
         setVisible(true);
+
+        onlineMode = false;
+        onOnlinePurchaseRequested = null;
+    }
+
+    public void openOnline(int balance, float secondsRemaining, boolean alreadyBought, Consumer<Snack> onPurchaseRequested) {
+        onlineOffers.clear();
+        onlineMode = true;
+        onOnlinePurchaseRequested = onPurchaseRequested;
+        onPurchaseConfirmed = null;
+
+        this.balance = balance;
+        boughtThisInterval = alreadyBought;
+        refuseNextOrder = false;
+
+        boughtSnacks.clear();
+        selectedSnack = null;
+        orderState = OrderState.DETAIL;
+        remaining = Math.max(0f, secondsRemaining);
+
+        setReconnecting(false);
+        refreshOffers();
+        refreshClock();
+        setVisible(true);
+    }
+
+    public void setOnlineOffers(List<PetiscoLojaMensagem> offers) {
+        if (!onlineMode || onlineOffers.equals(offers)) {
+            return;
+        }
+
+        onlineOffers.clear();
+        onlineOffers.addAll(offers);
+
+        refreshOffers();
+
+        if (selectedSnack != null) {
+            refreshOrder();
+        }
+    }
+
+    private PetiscoLojaMensagem findOnlineOffer(Snack snack) {
+        TipoPetiscoMensagem tipo =
+            snack == Snack.OVO ? TipoPetiscoMensagem.OVO_COLORIDO : snack == Snack.COXINHA ? TipoPetiscoMensagem.COXINHA : TipoPetiscoMensagem.TORRESMO;
+
+        for (PetiscoLojaMensagem offer : onlineOffers) {
+            if (offer.getTipo() == tipo) {
+                return offer;
+            }
+        }
+
+        return null;
+    }
+
+    private String onlineUnavailableReason(PetiscoLojaMensagem offer) {
+        if (boughtThisInterval) {
+            return "Limite do intervalo";
+        }
+
+        if (offer == null) {
+            return "Indisponível";
+        }
+
+        switch (offer.getMotivoIndisponibilidade()) {
+            case "JA_COMPROU_NESTA_LOJA":
+                return "Limite do intervalo";
+
+            case "PETISCO_REPETIDO":
+                return "Repetido da loja anterior";
+
+            case "JA_POSSUI_PETISCO":
+                return "Já possui um petisco";
+
+            case "SALDO_INSUFICIENTE":
+                int missing = Math.max(0, offer.getCusto() - balance);
+
+                if (missing == 1) {
+                    return "Falta 1 moeda";
+                }
+
+                return missing > 1 ? "Faltam " + missing + " moedas" : "Saldo insuficiente";
+
+            case "LOJA_FECHADA":
+                return "Intervalo encerrado";
+
+            default:
+                return "Indisponível";
+        }
+    }
+
+    public void updateOnline(
+        int balance,
+        float secondsRemaining,
+        boolean alreadyBought
+    ) {
+        if (!onlineMode) {
+            return;
+        }
+
+        this.balance = balance;
+        remaining = Math.max(0f, secondsRemaining);
+        boughtThisInterval = boughtThisInterval || alreadyBought;
+
+        if (alreadyBought
+            && selectedSnack != null
+            && orderState == OrderState.SENDING) {
+            confirmOnlinePurchase();
+        }
+
+        refreshOffers();
+        refreshClock();
+
+        if (selectedSnack != null) {
+            refreshOrder();
+        }
+    }
+
+    public void confirmOnlinePurchase() {
+        if (!onlineMode || selectedSnack == null) {
+            return;
+        }
+
+        boughtThisInterval = true;
+        boughtSnacks.add(selectedSnack);
+        orderState = OrderState.CONFIRMED;
+
+        refreshOffers();
+        refreshOrder();
+    }
+
+    public void refuseOnlinePurchase() {
+        if (!onlineMode
+            || selectedSnack == null
+            || orderState != OrderState.SENDING) {
+            return;
+        }
+
+        orderState = OrderState.REFUSED;
+        refreshOrder();
+    }
+
+    public void closeOnline() {
+        setVisible(false);
+        selectedSnack = null;
+        onOnlinePurchaseRequested = null;
+        onlineMode = false;
     }
 
     private void refreshOffers() {
@@ -305,6 +456,22 @@ public final class IntervalView extends Group implements Disposable {
 
         for (Snack snack : Snack.values()) {
             int i = snack.ordinal();
+
+            if (onlineMode) {
+                PetiscoLojaMensagem offer = findOnlineOffer(snack);
+                boolean bought = boughtSnacks.contains(snack);
+
+                boolean available =
+                    offer != null
+                        && offer.getPodeComprar()
+                        && !boughtThisInterval;
+
+                boughtBadges[i].setVisible(bought);
+                missingBalance[i].setVisible(!bought && !available);
+                missingBalance[i].setText(onlineUnavailableReason(offer));
+                continue;
+            }
+
             int missing = snack.price - balance;
             boolean bought = boughtSnacks.contains(snack);
             boolean intervalLimit = boughtThisInterval;
@@ -324,14 +491,43 @@ public final class IntervalView extends Group implements Disposable {
 
     private void refreshOrder() {
         Snack snack = selectedSnack;
+        int price = snack.price;
+
         String title = snack.displayName;
         String subtitle = snack.effect;
         String description = snack.description;
         String note = "Uso manual na próxima rodada. Expira ao final dela, mesmo sem usar.";
+
         String priceLabel = "Preço";
-        boolean disabled = balance < snack.price;
+        boolean disabled = balance < price;
         String buttonText = disabled ? "SEM SALDO" : "COMPRAR";
         boolean canClose = true;
+
+        if (onlineMode) {
+            PetiscoLojaMensagem offer = findOnlineOffer(snack);
+
+            if (offer != null) {
+                title = offer.getNome();
+                description = offer.getDescricao();
+                price = offer.getCusto();
+            }
+
+            disabled =
+                offer == null
+                    || !offer.getPodeComprar()
+                    || boughtThisInterval;
+
+            buttonText = disabled ? "INDISPONÍVEL" : "COMPRAR";
+
+            if (snack == Snack.TORRESMO) {
+                subtitle = "Nova mão";
+                note = "Use na preparação da próxima rodada. Expira ao final dela.";
+            }
+
+            if (disabled) {
+                note = onlineUnavailableReason(offer);
+            }
+        }
 
         switch (orderState) {
             case SENDING:
@@ -343,8 +539,7 @@ public final class IntervalView extends Group implements Disposable {
             case CONFIRMED:
                 title = "Pedido Confirmado!";
                 subtitle = snack.displayName;
-                description = "Seu petisco está reservado para a próxima rodada. "
-                    + "Aguarde o fim do intervalo.";
+                description = "Seu petisco está reservado para a próxima rodada. " + "Aguarde o fim do intervalo.";
                 note = "Você já comprou neste intervalo. Poderá comprar outro no próximo.";
                 priceLabel = "Compra";
                 buttonText = "AGUARDE...";
@@ -366,14 +561,11 @@ public final class IntervalView extends Group implements Disposable {
         }
 
         orderTitle.setText(title);
-        orderTitle.setFontScale(orderState == OrderState.DETAIL
-            || orderState == OrderState.SENDING ? 1f : 40f / 48f);
+        orderTitle.setFontScale(orderState == OrderState.DETAIL || orderState == OrderState.SENDING ? 1f : 40f / 48f);
         orderSubtitle.setText(subtitle);
         orderDescription.setText(description);
         orderNote.setText(note);
-        orderBalance.setText(
-            priceLabel + ": " + snack.price + " moedas\nSeu saldo: " + balance + " moedas"
-        );
+        orderBalance.setText(priceLabel + ": " + price + " moedas\nSeu saldo: " + balance + " moedas");
         orderButton.setText(buttonText);
         orderButton.setDisabled(disabled);
         closeOrder.setVisible(canClose);
@@ -381,18 +573,32 @@ public final class IntervalView extends Group implements Disposable {
 
     private void handleOrderButton() {
         if (isTimeUp() || isReconnecting()
-            || orderButton.isDisabled() || boughtThisInterval) {
+            || orderButton.isDisabled()) {
             return;
         }
 
         if (orderState == OrderState.REFUSED) {
             onUiClick.run();
             closeOrderPanel();
-        } else if (orderState == OrderState.DETAIL) {
-            onUiClick.run();
-            orderState = OrderState.SENDING;
+            return;
+        }
+
+        if (boughtThisInterval || orderState != OrderState.DETAIL) {
+            return;
+        }
+
+        onUiClick.run();
+        orderState = OrderState.SENDING;
+        refreshOrder();
+
+        if (onlineMode) {
+            if (onOnlinePurchaseRequested != null) {
+                onOnlinePurchaseRequested.accept(selectedSnack);
+            } else {
+                refuseOnlinePurchase();
+            }
+        } else {
             responseTime = 0.6f;
-            refreshOrder();
         }
     }
 
@@ -439,10 +645,12 @@ public final class IntervalView extends Group implements Disposable {
             return;
         }
         super.act(delta);
-        remaining = Math.max(0f, remaining - delta);
+        if (!onlineMode) {
+            remaining = Math.max(0f, remaining - delta);
+        }
         refreshClock();
 
-        if (orderState == OrderState.SENDING && !isReconnecting() && !isTimeUp()) {
+        if (!onlineMode && orderState == OrderState.SENDING && !isReconnecting() && !isTimeUp()) {
             responseTime -= delta;
             if (responseTime <= 0f) {
                 completeOrder();

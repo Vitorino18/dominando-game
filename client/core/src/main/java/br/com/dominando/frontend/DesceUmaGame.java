@@ -18,8 +18,12 @@ import br.com.dominando.frontend.audio.GameAudio;
 
 import br.com.dominando.frontend.network.ClienteJogo;
 
+import br.com.dominando.frontend.ui.IntervalView.Snack;
+
 import br.com.dominando.grpc.EstadoJogoResponse;
 import br.com.dominando.grpc.LadoJogada;
+import br.com.dominando.grpc.TipoPetiscoMensagem;
+import br.com.dominando.grpc.FasePartidaMensagem;
 
 import io.grpc.Status;
 
@@ -453,6 +457,7 @@ public class DesceUmaGame extends Game {
             matchScreen.setOnJogarPecaOnline(this::jogarPecaOnline);
             matchScreen.setOnComprarPecaOnline(this::comprarPecaOnline);
             matchScreen.setOnPassarVezOnline(this::passarVezOnline);
+            matchScreen.setOnComprarPetiscoOnline(this::comprarPetiscoOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -487,6 +492,61 @@ public class DesceUmaGame extends Game {
 
                 Gdx.app.log("Rede", "Falha ao confirmar passe: " + Status.fromThrowable(erro).getCode());
                 tela.falharJogadaOnline();
+            }
+        );
+    }
+
+    private void comprarPetiscoOnline(Snack snack) {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null
+            || getScreen() != tela
+            || ultimoEstadoJogo == null
+            || ultimoEstadoJogo.getFase()
+            != FasePartidaMensagem.LOJA_PETISCOS) {
+            return;
+        }
+
+        int rodada = ultimoEstadoJogo.getNumeroRodada();
+
+        TipoPetiscoMensagem tipo;
+
+        switch (snack) {
+            case OVO:
+                tipo = TipoPetiscoMensagem.OVO_COLORIDO;
+                break;
+            case COXINHA:
+                tipo = TipoPetiscoMensagem.COXINHA;
+                break;
+            case TORRESMO:
+                tipo = TipoPetiscoMensagem.TORRESMO;
+                break;
+            default:
+                return;
+        }
+
+        clienteJogo.comprarPetisco(codigoSala, tokenJogador, tipo, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarCompraPetiscoOnline(rodada, resposta.getResultado());
+            },
+            erro -> {
+                if (sessao != versaoSessao
+                    || matchScreen != tela
+                    || ultimoEstadoJogo == null
+                    || ultimoEstadoJogo.getNumeroRodada() != rodada
+                    || ultimoEstadoJogo.getFase()
+                    != FasePartidaMensagem.LOJA_PETISCOS) {
+                    return;
+                }
+
+                Gdx.app.log("Rede", "Compra sem confirmação: " + Status.fromThrowable(erro).getCode());
+                clienteJogo.pararAcompanhamento();
+                acompanhandoJogo = false;
+                tempoReconexaoStreaming = 0f;
             }
         );
     }

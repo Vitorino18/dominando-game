@@ -56,6 +56,7 @@ import br.com.dominando.grpc.EstadoJogoResponse;
 import br.com.dominando.grpc.JogadorMensagem;
 import br.com.dominando.grpc.PecaMensagem;
 import br.com.dominando.grpc.LadoJogada;
+import br.com.dominando.grpc.FasePartidaMensagem;
 
 import java.util.function.BiConsumer;
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class MatchScreen extends ScreenAdapter {
     private static final float WIDTH = 1920f;
@@ -189,6 +191,9 @@ public class MatchScreen extends ScreenAdapter {
     private Runnable onPassarVezOnline;
     private boolean onlineShowingResult;
     private boolean onlineFinalShown;
+    private long onlineShopDeadlineNanos;
+    private Consumer<Snack> onComprarPetiscoOnline;
+    private int onlinePendingPurchaseRound = -1;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
@@ -333,6 +338,135 @@ public class MatchScreen extends ScreenAdapter {
         opponentInfoView.setActiveTurn(false);
     }
 
+    public void setOnComprarPetiscoOnline(Consumer<Snack> callback) {
+        onComprarPetiscoOnline = callback;
+    }
+
+    private float tempoLojaOnlineRestante() {
+        return Math.max(
+            0f,
+            (onlineShopDeadlineNanos - System.nanoTime())
+                / 1_000_000_000f
+        );
+    }
+
+    private void solicitarCompraPetiscoOnline(Snack snack) {
+        if (onlineState == null
+            || onlineState.getFase() != FasePartidaMensagem.LOJA_PETISCOS
+            || onlineState.getJaCompreiNestaLoja()
+            || onlinePendingPurchaseRound != -1
+            || onlineConnectionMessage != null
+            || tempoLojaOnlineRestante() <= 0f
+            || onComprarPetiscoOnline == null) {
+
+            intervalView.refuseOnlinePurchase();
+            return;
+        }
+
+        onlinePendingPurchaseRound = onlineState.getNumeroRodada();
+        onComprarPetiscoOnline.accept(snack);
+    }
+
+    public void confirmarCompraPetiscoOnline(int rodada, String resultado) {
+        if (onlineState == null
+            || onlinePendingPurchaseRound != rodada
+            || onlineState.getNumeroRodada() != rodada
+            || onlineState.getFase() != FasePartidaMensagem.LOJA_PETISCOS) {
+            return;
+        }
+
+        onlinePendingPurchaseRound = -1;
+
+        if ("COMPRA_REALIZADA".equals(resultado)) {
+            intervalView.confirmOnlinePurchase();
+            playSnackPurchaseSound();
+        } else {
+            intervalView.refuseOnlinePurchase();
+            Gdx.app.log("Loja", "Pedido recusado: " + resultado);
+        }
+    }
+
+    private void atualizarLojaOnline() {
+        if (onlineState == null) {
+            return;
+        }
+
+        boolean naLoja =
+            onlineState.getFase() == FasePartidaMensagem.LOJA_PETISCOS
+                && !onlineState.getCompeticaoEncerrada();
+
+        if (naLoja) {
+            if (onlineShowingResult || onlineFinalShown) {
+                return;
+            }
+
+            if (!intervalView.isVisible()) {
+                bloquearInteracaoOnline();
+
+                intervalView.openOnline(
+                    humanCoins,
+                    tempoLojaOnlineRestante(),
+                    onlineState.getJaCompreiNestaLoja(),
+                    this::solicitarCompraPetiscoOnline
+                );
+
+                intervalView.toFront();
+            }
+
+            intervalView.setOnlineOffers(
+                onlineState.getPetiscosLojaList()
+            );
+
+            intervalView.updateOnline(
+                humanCoins,
+                tempoLojaOnlineRestante(),
+                onlineState.getJaCompreiNestaLoja()
+            );
+
+            if (onlineState.getJaCompreiNestaLoja()
+                && onlinePendingPurchaseRound == onlineState.getNumeroRodada()) {
+
+                confirmarCompraPetiscoOnline(
+                    onlineState.getNumeroRodada(),
+                    "COMPRA_REALIZADA"
+                );
+            }
+
+            intervalView.setReconnecting(
+                onlineConnectionMessage != null
+            );
+            return;
+        }
+
+        if (!intervalView.isVisible()) {
+            return;
+        }
+
+        intervalView.closeOnline();
+        onlinePendingPurchaseRound = -1;
+        gameHud.setTouchable(Touchable.childrenOnly);
+
+        boolean distribuir =
+            !onlineShowingResult
+                && !onlineFinalShown
+                && onlineState.getPecasMesaCount() == 0
+                && onlineState.getMinhaMaoCount() == 7
+                && onlineState.getPecasBaralho() == 14;
+
+        for (JogadorMensagem jogador : onlineState.getJogadoresList()) {
+            distribuir = distribuir && jogador.getQuantidadePecas() == 7;
+        }
+
+        if (distribuir) {
+            entranceFinished = false;
+            entranceTime = ENTRANCE_DURATION;
+
+            aplicarEstadoOnline(onlineState);
+            updateEntrance();
+            playShuffleSound();
+        }
+    }
+
     private void mostrarRodadaOnline(boolean venceu, int minhasTampinhas, int tampinhasAdversario, int moedasRecebidas) {
         onlineShowingResult = true;
         bloquearInteracaoOnline();
@@ -364,7 +498,12 @@ public class MatchScreen extends ScreenAdapter {
                     showCoinReward(moedasRecebidas);
                 }
             }),
-            Actions.delay(venceu && moedasRecebidas > 0 ? 2f : 0f),
+            Actions.delay(
+                onlineState.getFase() == FasePartidaMensagem.LOJA_PETISCOS
+                    || (venceu && moedasRecebidas > 0)
+                    ? 2f
+                    : 0f
+            ),
             Actions.fadeOut(0.25f, Interpolation.smooth),
             Actions.run(this::terminarResultadoOnline)
         ));
@@ -829,6 +968,16 @@ public class MatchScreen extends ScreenAdapter {
         EstadoJogoResponse anterior = onlineState;
         onlineState = estado;
 
+        if (estado != anterior && estado.getFase() == FasePartidaMensagem.LOJA_PETISCOS) {
+            long novoPrazo = System.nanoTime() + estado.getTempoLojaRestanteSegundos() * 1_000_000_000L;
+
+            boolean mesmaLoja = anterior != null
+                    && anterior.getFase() == FasePartidaMensagem.LOJA_PETISCOS
+                    && anterior.getNumeroRodada() == estado.getNumeroRodada();
+
+            onlineShopDeadlineNanos = mesmaLoja ? Math.min(onlineShopDeadlineNanos, novoPrazo) : novoPrazo;
+        }
+
         atualizarConfirmacaoOnline();
 
         if (onlineFinalShown) {
@@ -902,7 +1051,12 @@ public class MatchScreen extends ScreenAdapter {
         leftEndPreview.setVisible(false);
         rightEndPreview.setVisible(false);
 
-        boolean destacarVez = entranceFinished && onlineConnectionMessage == null && !estado.getCompeticaoEncerrada();
+        boolean destacarVez =
+            entranceFinished
+                && onlineConnectionMessage == null
+                && !estado.getCompeticaoEncerrada()
+                && estado.getFase() == FasePartidaMensagem.EM_ANDAMENTO;
+
         onlineHandsView.setSelectionEnabled(
             destacarVez
                 && !movingStone
@@ -916,13 +1070,24 @@ public class MatchScreen extends ScreenAdapter {
 
         opponentInfoView.setActiveTurn(
             destacarVez
+                && adversario.getConectado()
                 && adversario.getNome().equals(estado.getJogadorDaVez())
         );
+
+        if (!adversario.getConectado()) {
+            opponentInfoView.setTurnPrompt("Reconectando...");
+        }
 
         if (onlineConnectionMessage != null) {
             playerInfoView.setTurnPrompt(onlineConnectionMessage);
         } else if (estado.getCompeticaoEncerrada()) {
             playerInfoView.setTurnPrompt("Partida encerrada");
+        } else if (estado.getFase() == FasePartidaMensagem.LOJA_PETISCOS) {
+            playerInfoView.setTurnPrompt("Loja de petiscos");
+        } else if (estado.getFase() == FasePartidaMensagem.PREPARACAO_RODADA) {
+            playerInfoView.setTurnPrompt("Preparando rodada");
+        } else if (estado.getFase() != FasePartidaMensagem.EM_ANDAMENTO) {
+            playerInfoView.setTurnPrompt("Aguardando rodada");
         } else if (onlineActionMessage != null) {
             playerInfoView.setTurnPrompt(onlineActionMessage);
         } else if (onlineBeforePlay != null) {
@@ -1073,6 +1238,9 @@ public class MatchScreen extends ScreenAdapter {
             && onlineConnectionMessage == null
             && onlineState != null
             && !onlineState.getCompeticaoEncerrada()
+            && onlineState.getFase() == FasePartidaMensagem.EM_ANDAMENTO
+            && !onlineShowingResult
+            && !onlineFinalShown
             && onlinePlayerName.equals(onlineState.getJogadorDaVez())
             && onlineBeforePlay == null
             && !movingStone
@@ -2947,14 +3115,21 @@ public class MatchScreen extends ScreenAdapter {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
         stage.getViewport().apply();
         stage.act(dt);
+        atualizarLojaOnline();
 
         boolean ready = entranceTime >= PREPARATION_END;
-
         boolean comandaFinal = roundResultView.isFinalReceiptVisible();
+        boolean lojaAberta = intervalView.isVisible();
 
-        tilesLayer.setVisible(ready && !comandaFinal);
-        hudLayer.setVisible(ready);
-        gameHud.setVisible(!comandaFinal);
+        tilesLayer.setVisible(ready && !comandaFinal && !lojaAberta);
+        hudLayer.setVisible(ready || lojaAberta);
+        gameHud.setVisible(!comandaFinal && !lojaAberta);
+
+        onlineHandsView.setVisible(
+            !onlineShowingResult
+                && !onlineFinalShown
+                && !lojaAberta
+        );
 
         redistributionMessage.setVisible(false);
         snackActionView.setVisible(false);

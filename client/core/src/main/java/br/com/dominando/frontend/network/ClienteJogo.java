@@ -18,6 +18,9 @@ import br.com.dominando.grpc.AcaoJogoResponse;
 import br.com.dominando.grpc.JogarPecaRequest;
 import br.com.dominando.grpc.LadoJogada;
 import br.com.dominando.grpc.AcaoSimplesRequest;
+import br.com.dominando.grpc.ComprarPetiscoRequest;
+import br.com.dominando.grpc.ComprarPetiscoResponse;
+import br.com.dominando.grpc.TipoPetiscoMensagem;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -140,6 +143,11 @@ public final class ClienteJogo implements Disposable {
         if (anterior != null) {
             anterior.cancel(null);
         }
+    }
+
+    public void comprarPetisco(String codigo, String token, TipoPetiscoMensagem tipo, Consumer<ComprarPetiscoResponse> sucesso, Consumer<Throwable> erro) {
+        ComprarPetiscoRequest request = ComprarPetiscoRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).setTipo(tipo).build();
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).comprarPetisco(request, observar(sucesso, erro));
     }
 
     private <T> StreamObserver<T> observar(Consumer<T> sucesso, Consumer<Throwable> erro) {
