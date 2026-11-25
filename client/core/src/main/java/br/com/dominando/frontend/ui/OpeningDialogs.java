@@ -63,7 +63,7 @@ public class OpeningDialogs implements Disposable {
     public OpeningDialogs(GameSettings settings, Runnable onRetry, Runnable onLeaveMatch) {
         this.settings = settings;
         clickSound = GameAudio.newSound(Gdx.files.internal("audio/clique-botao.wav"));
-        float extraHeight = 120f + (onLeaveMatch == null ? 0f : 96f);
+        float extraHeight = 184f + (onLeaveMatch == null ? 0f : 96f);
         titleFont = createFont("fonts/LilitaOne-Regular.ttf", 40);
         labelFont = createFont("fonts/NunitoSans-Regular.ttf", 28);
         buttonFont = createFont("fonts/LilitaOne-Regular.ttf", 28);
@@ -171,6 +171,7 @@ public class OpeningDialogs implements Disposable {
         TextButton backButton = new TextButton("VOLTAR", backStyle);
         backButton.padBottom(8f);
         content.add(backButton).colspan(2).width(552f).height(80f);
+
         if (onLeaveMatch != null) {
             buildExitOverlay(onLeaveMatch);
             buildReconnectionOverlays();
@@ -194,6 +195,42 @@ public class OpeningDialogs implements Disposable {
                 }
             });
         }
+
+        TextButton.TextButtonStyle creditsStyle = new TextButton.TextButtonStyle();
+
+        creditsStyle.font = labelFont;
+        creditsStyle.fontColor = brown;
+
+        TextButton creditsSource = new TextButton("Cuícas 1 e 2: reinsamba (Freesound)\n" + "Volume e fades ajustados no jogo", creditsStyle);
+        creditsSource.getLabel().setFontScale(0.65f);
+        creditsSource.getLabel().setAlignment(Align.left);
+
+        TextButton creditsLicense = new TextButton("CC BY 4.0", creditsStyle
+        );
+        creditsLicense.getLabel().setFontScale(0.65f);
+
+        Table creditsRow = new Table();
+        creditsRow.add(creditsSource).width(416f).height(52f);
+        creditsRow.add(creditsLicense).width(112f).height(52f).padLeft(24f);
+
+        content.row();
+        content.add(creditsRow).colspan(2).width(552f).height(52f).padTop(12f);
+
+        creditsSource.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
+                Gdx.net.openURI("https://freesound.org/people/reinsamba/packs/1339/");
+            }
+        });
+
+        creditsLicense.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                playClickSound();
+                Gdx.net.openURI("https://creativecommons.org/licenses/by/4.0/");
+            }
+        });
 
         musicButton.addListener(new ChangeListener() {
             @Override

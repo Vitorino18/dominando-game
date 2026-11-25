@@ -19,6 +19,7 @@ public final class GameAudio {
     private static GameSettings settings;
     private static boolean foreground = true;
     private static float previousVolume = -1f;
+    private static long lastEffectNanos;
 
     private GameAudio() {}
 
@@ -26,6 +27,7 @@ public final class GameAudio {
         settings = gameSettings;
         foreground = true;
         previousVolume = -1f;
+        lastEffectNanos = 0L;
     }
 
     public static Sound newSound(FileHandle file) {
@@ -54,10 +56,15 @@ public final class GameAudio {
         float gain = Math.max(0f, Math.min(1f, level));
         long id = sound.play(gain * volume());
         if (id >= 0L) {
+            lastEffectNanos = System.nanoTime();
             if (playbacks.size() >= 128) playbacks.remove(0);
             playbacks.add(new Playback(sound, id, gain));
         }
         return id;
+    }
+
+    public static boolean wasEffectPlayedRecently(float seconds) {
+        return lastEffectNanos != 0L && (System.nanoTime() - lastEffectNanos) / 1_000_000_000f < seconds;
     }
 
     public static void play(Music music) {

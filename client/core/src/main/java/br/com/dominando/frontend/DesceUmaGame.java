@@ -15,6 +15,7 @@ import br.com.dominando.frontend.screens.MatchIntroScreen;
 import br.com.dominando.frontend.screens.MatchScreen;
 
 import br.com.dominando.frontend.audio.GameAudio;
+import br.com.dominando.frontend.audio.TableAmbience;
 
 import br.com.dominando.frontend.network.ClienteJogo;
 
@@ -66,6 +67,9 @@ public class DesceUmaGame extends Game {
 
     private int versaoSessao;
 
+    private TableAmbience tableAmbience;
+
+
     @Override
     public void create() {
         gameSettings = new GameSettings();
@@ -76,6 +80,7 @@ public class DesceUmaGame extends Game {
         menuMusic.setLooping(true);
         openingScreen = new OpeningScreen(() -> Gdx.app.postRunnable(this::showPairing));
         setScreen(openingScreen);
+        tableAmbience = new TableAmbience(gameSettings);
     }
 
     private void showPairing() {
@@ -777,6 +782,12 @@ public class DesceUmaGame extends Game {
         atualizarStreaming();
         updateMenuMusic();
         GameAudio.update();
+        boolean mesaAtiva = matchScreen != null
+                && getScreen() == matchScreen
+                && audioInForeground
+                && matchScreen.isTableAmbienceAllowed();
+
+        tableAmbience.update(Gdx.graphics.getDeltaTime(), mesaAtiva);
     }
 
     private boolean audioInForeground = true;
@@ -787,6 +798,10 @@ public class DesceUmaGame extends Game {
 
         if (!foreground && menuMusic != null && menuMusic.isPlaying()) {
             menuMusic.pause();
+        }
+
+        if (!foreground && tableAmbience != null) {
+            tableAmbience.stop();
         }
     }
 
@@ -840,6 +855,10 @@ public class DesceUmaGame extends Game {
     @Override
     public void dispose() {
         setScreen(null);
+
+        if (tableAmbience != null) {
+            tableAmbience.dispose();
+        }
 
         if (clienteJogo != null) {
             clienteJogo.dispose();

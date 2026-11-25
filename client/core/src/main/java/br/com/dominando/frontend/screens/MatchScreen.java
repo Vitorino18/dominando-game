@@ -2393,6 +2393,31 @@ public class MatchScreen extends ScreenAdapter {
             && onlineUncertainCoxinhaRound != onlineState.getNumeroRodada();
     }
 
+    public boolean isTableAmbienceAllowed() {
+        if (!entranceFinished
+            || roundResultView.isVisible()
+            || intervalView.isVisible()
+            || closedRoundPreview
+            || matchSettings.isExitConfirmationOpen()
+            || matchSettings.isReconnectionOpen()) {
+
+            return false;
+        }
+
+        return !online
+            || (
+            onlineState != null
+                && onlineConnectionMessage == null
+                && !onlineState.getCompeticaoEncerrada()
+                && (
+                onlineState.getFase()
+                    == FasePartidaMensagem.EM_ANDAMENTO
+                    || onlineState.getFase()
+                    == FasePartidaMensagem.PREPARACAO_RODADA
+            )
+        );
+    }
+
     public void confirmarUsoCoxinhaOnline(int rodada, String resultado) {
         if (onlinePendingCoxinhaRound != rodada
             || onlineState == null
