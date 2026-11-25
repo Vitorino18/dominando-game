@@ -21,6 +21,8 @@ import br.com.dominando.grpc.AcaoSimplesRequest;
 import br.com.dominando.grpc.ComprarPetiscoRequest;
 import br.com.dominando.grpc.ComprarPetiscoResponse;
 import br.com.dominando.grpc.TipoPetiscoMensagem;
+import br.com.dominando.grpc.UtilizarPetiscoRequest;
+import br.com.dominando.grpc.UtilizarPetiscoResponse;
 
 import io.grpc.Context;
 import io.grpc.Status;
@@ -148,6 +150,16 @@ public final class ClienteJogo implements Disposable {
     public void comprarPetisco(String codigo, String token, TipoPetiscoMensagem tipo, Consumer<ComprarPetiscoResponse> sucesso, Consumer<Throwable> erro) {
         ComprarPetiscoRequest request = ComprarPetiscoRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).setTipo(tipo).build();
         stub.withDeadlineAfter(8, TimeUnit.SECONDS).comprarPetisco(request, observar(sucesso, erro));
+    }
+
+    public void utilizarPetisco(String codigo, String token, TipoPetiscoMensagem tipo, Integer indicePeca, Consumer<UtilizarPetiscoResponse> sucesso, Consumer<Throwable> erro) {
+        UtilizarPetiscoRequest.Builder request = UtilizarPetiscoRequest.newBuilder().setCodigoSala(codigo).setTokenJogador(token).setTipo(tipo);
+
+        if (indicePeca != null) {
+            request.setIndicePeca(indicePeca);
+        }
+
+        stub.withDeadlineAfter(8, TimeUnit.SECONDS).utilizarPetisco(request.build(), observar(sucesso, erro));
     }
 
     private <T> StreamObserver<T> observar(Consumer<T> sucesso, Consumer<Throwable> erro) {

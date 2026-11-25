@@ -57,6 +57,8 @@ import br.com.dominando.grpc.JogadorMensagem;
 import br.com.dominando.grpc.PecaMensagem;
 import br.com.dominando.grpc.LadoJogada;
 import br.com.dominando.grpc.FasePartidaMensagem;
+import br.com.dominando.grpc.TipoPetiscoMensagem;
+import br.com.dominando.grpc.UtilizarPetiscoResponse;
 
 import java.util.function.BiConsumer;
 import java.util.ArrayList;
@@ -194,6 +196,15 @@ public class MatchScreen extends ScreenAdapter {
     private long onlineShopDeadlineNanos;
     private Consumer<Snack> onComprarPetiscoOnline;
     private int onlinePendingPurchaseRound = -1;
+    private Runnable onUsarOvoOnline;
+    private int onlinePendingEggRound = -1;
+    private int onlineUsedEggRound = -1;
+    private int onlineUncertainEggRound = -1;
+
+    private DominoTile onlineRevealedTile;
+    private Label onlineRevealedLabel;
+    private long onlineRevealDeadlineNanos;
+    private float onlineRevealDuration;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
@@ -1243,6 +1254,7 @@ public class MatchScreen extends ScreenAdapter {
             && !onlineFinalShown
             && onlinePlayerName.equals(onlineState.getJogadorDaVez())
             && onlineBeforePlay == null
+            && onlinePendingEggRound == -1
             && !movingStone
             && stage.getActors().peek() == hudLayer;
     }
@@ -1949,11 +1961,129 @@ public class MatchScreen extends ScreenAdapter {
         return !online && entranceFinished && !movingStone && !round.isFinished() && round.turn() == Player.HUMAN;
     }
 
+    public void setOnUsarOvoOnline(Runnable callback) {
+        onUsarOvoOnline = callback;
+    }
+
+    private boolean canUseOvoOnline() {
+        return onUsarOvoOnline != null
+            && canSelectOnline()
+            && !intervalView.isVisible()
+            && onlineState.getMeuPetisco()
+            == TipoPetiscoMensagem.OVO_COLORIDO
+            && onlineState.getPossoUtilizarPetisco()
+            && onlineUsedEggRound != onlineState.getNumeroRodada()
+            && onlineUncertainEggRound != onlineState.getNumeroRodada();
+    }
+
+    private void usarOvoOnline() {
+        if (!canUseOvoOnline()) {
+            return;
+        }
+
+        onUiClick.run();
+        onlineHandsView.setSelectedIndex(-1);
+
+        onlinePendingEggRound = onlineState.getNumeroRodada();
+        onlineActionMessage = "Usando petisco...";
+
+        aplicarEstadoOnline(onlineState);
+        onUsarOvoOnline.run();
+    }
+
+    public void confirmarUsoOvoOnline(int rodada, UtilizarPetiscoResponse resposta) {
+        if (onlinePendingEggRound != rodada) {
+            return;
+        }
+
+        onlinePendingEggRound = -1;
+        onlineActionMessage = null;
+
+        if (onlineState == null
+            || onlineState.getNumeroRodada() != rodada
+            || onlineState.getFase() != FasePartidaMensagem.EM_ANDAMENTO) {
+            return;
+        }
+
+        if (!"PETISCO_UTILIZADO".equals(resposta.getResultado())
+            || !resposta.hasPecaRevelada()
+            || resposta.getDuracaoRevelacaoSegundos() <= 0) {
+
+            onlineActionMessage = "Petisco não utilizado";
+            Gdx.app.log("Petisco", resposta.getResultado());
+            aplicarEstadoOnline(onlineState);
+            return;
+        }
+
+        onlineUsedEggRound = rodada;
+
+        mostrarRevelacaoOvoOnline(
+            resposta.getPecaRevelada(),
+            resposta.getDuracaoRevelacaoSegundos()
+        );
+
+        aplicarEstadoOnline(onlineState);
+    }
+
+    public void falharUsoOvoOnline(int rodada) {
+        if (onlinePendingEggRound != rodada) {
+            return;
+        }
+
+        onlinePendingEggRound = -1;
+
+        if (onlineState == null
+            || onlineState.getNumeroRodada() != rodada) {
+            return;
+        }
+
+        onlineUncertainEggRound = rodada;
+        onlineActionMessage = "Uso sem confirmação";
+        aplicarEstadoOnline(onlineState);
+    }
+
     private boolean canUseEgg() {
         return roundSnack == Snack.OVO && !snackUsed && !humanDrewThisTurn
             && !closedRoundPreview && !intervalView.isVisible()
             && stage.getActors().peek() == hudLayer
             && canAct() && !round.hand(Player.OPPONENT).isEmpty();
+    }
+
+    private void mostrarRevelacaoOvoOnline(PecaMensagem peca, int segundos) {
+        limparRevelacaoOvoOnline();
+
+        onlineRevealedTile = new DominoTile(dominoAssets, peca.getLadoA(), peca.getLadoB());
+
+        onlineRevealedTile.setFaceDown(false);
+        onlineRevealedTile.setTouchable(Touchable.disabled);
+        onlineRevealedTile.setBounds(WIDTH / 2f + 250f, OPPONENT_HAND_Y - 61.5f, 66f, 123f);
+        tilesLayer.addActor(onlineRevealedTile);
+
+        onlineRevealedLabel = new Label("Revelada", new Label.LabelStyle(controlsFont, Color.valueOf("F0DCB2")));
+        onlineRevealedLabel.setFontScale(0.55f);
+        onlineRevealedLabel.setAlignment(Align.center);
+        onlineRevealedLabel.setTouchable(Touchable.disabled);
+        onlineRevealedLabel.setBounds(onlineRevealedTile.getX() - 24f, onlineRevealedTile.getY() - 34f, 114f, 26f);
+        tilesLayer.addActor(onlineRevealedLabel);
+
+        onlineRevealDuration = segundos;
+        onlineRevealDeadlineNanos = System.nanoTime() + segundos * 1_000_000_000L;
+
+        snackActionView.highlightTile(onlineRevealedTile, 1f);
+    }
+
+    private void limparRevelacaoOvoOnline() {
+        if (onlineRevealedTile != null) {
+            onlineRevealedTile.remove();
+            onlineRevealedTile = null;
+        }
+
+        if (onlineRevealedLabel != null) {
+            onlineRevealedLabel.remove();
+            onlineRevealedLabel = null;
+        }
+
+        snackActionView.hideHighlight();
     }
 
     private void useEgg() {
@@ -1973,6 +2103,62 @@ public class MatchScreen extends ScreenAdapter {
         snackActionView.highlightTile(tile, 1f);
     }
 
+    private void atualizarOvoOnline() {
+        if (onlineState == null) {
+            return;
+        }
+
+        int rodada = onlineState.getNumeroRodada();
+
+        if (onlinePendingEggRound != -1
+            && onlinePendingEggRound != rodada) {
+
+            onlinePendingEggRound = -1;
+            onlineActionMessage = null;
+        }
+
+        boolean mostrar =
+            entranceFinished
+                && onlineConnectionMessage == null
+                && !onlineShowingResult
+                && !onlineFinalShown
+                && !intervalView.isVisible()
+                && onlineState.getFase()
+                == FasePartidaMensagem.EM_ANDAMENTO;
+
+        if (!mostrar) {
+            limparRevelacaoOvoOnline();
+            snackActionView.showSnack(null);
+            playerInfoView.setBackgroundVisible(true);
+            return;
+        }
+
+        boolean possuiOvo =
+            onlineState.getMeuPetisco()
+                == TipoPetiscoMensagem.OVO_COLORIDO
+                || onlineUsedEggRound == rodada
+                || onlinePendingEggRound == rodada;
+
+        snackActionView.showSnack(possuiOvo ? Snack.OVO : null);
+        playerInfoView.setBackgroundVisible(!possuiOvo);
+
+        if (onlineUsedEggRound == rodada) {
+            snackActionView.showUsedEgg();
+        } else {
+            snackActionView.setButtonEnabled(canUseOvoOnline());
+        }
+
+        if (onlineRevealedTile != null) {
+            float restante = (onlineRevealDeadlineNanos - System.nanoTime()) / 1_000_000_000f;
+
+            if (restante <= 0f || onlineUsedEggRound != rodada) {
+                limparRevelacaoOvoOnline();
+            } else {
+                snackActionView.highlightTile(onlineRevealedTile, restante / onlineRevealDuration);
+            }
+        }
+    }
+
     private boolean canUseNewSnack() {
         return !snackUsed && !humanDrewThisTurn && !closedRoundPreview
             && !intervalView.isVisible() && stage.getActors().peek() == hudLayer
@@ -1990,6 +2176,11 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void useSnack() {
+        if (online) {
+            usarOvoOnline();
+            return;
+        }
+
         if (canUseEgg()) {
             onUiClick.run();
             useEgg();
@@ -2049,6 +2240,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void clearEggReveal() {
+        limparRevelacaoOvoOnline();
         DominoTile tile = handActors.get(revealedStone);
         if (tile != null) {
             tile.setFaceDown(true);
@@ -3132,7 +3324,7 @@ public class MatchScreen extends ScreenAdapter {
         );
 
         redistributionMessage.setVisible(false);
-        snackActionView.setVisible(false);
+        atualizarOvoOnline();
         refreshOnlinePreviews();
         atualizarControlesOnline();
 

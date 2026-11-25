@@ -458,6 +458,7 @@ public class DesceUmaGame extends Game {
             matchScreen.setOnComprarPecaOnline(this::comprarPecaOnline);
             matchScreen.setOnPassarVezOnline(this::passarVezOnline);
             matchScreen.setOnComprarPetiscoOnline(this::comprarPetiscoOnline);
+            matchScreen.setOnUsarOvoOnline(this::usarOvoOnline);
         }
 
         if (matchIntroScreen == null) {
@@ -468,6 +469,36 @@ public class DesceUmaGame extends Game {
         }
 
         setScreen(matchIntroScreen);
+    }
+
+    private void usarOvoOnline() {
+        MatchScreen tela = matchScreen;
+        int sessao = versaoSessao;
+
+        if (tela == null
+            || getScreen() != tela
+            || ultimoEstadoJogo == null) {
+            return;
+        }
+
+        int rodada = ultimoEstadoJogo.getNumeroRodada();
+
+        clienteJogo.utilizarPetisco(codigoSala, tokenJogador, TipoPetiscoMensagem.OVO_COLORIDO, null, resposta -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                tela.confirmarUsoOvoOnline(rodada, resposta);
+            },
+            erro -> {
+                if (sessao != versaoSessao || matchScreen != tela) {
+                    return;
+                }
+
+                Gdx.app.log("Rede", "Uso do Ovo sem confirmação: " + Status.fromThrowable(erro).getCode());
+                tela.falharUsoOvoOnline(rodada);
+            }
+        );
     }
 
     private void passarVezOnline() {
