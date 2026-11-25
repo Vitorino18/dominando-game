@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 
 public class CavaView extends Group implements Disposable {
 
@@ -35,7 +36,7 @@ public class CavaView extends Group implements Disposable {
         counterTexture = createCounterTexture();
 
         Image badge = new Image(counterTexture);
-        badge.setBounds(124f, 4f, 42f, 28f);
+        badge.setBounds(116f, 4f, 54f, 36f);
         badge.setTouchable(Touchable.disabled);
         addActor(badge);
 
@@ -44,7 +45,7 @@ public class CavaView extends Group implements Disposable {
         Label.LabelStyle style = new Label.LabelStyle(counterFont, Color.valueOf("234730"));
         counterLabel = new Label("", style);
         counterLabel.setAlignment(Align.center);
-        counterLabel.setBounds(124f, 4f, 42f, 28f);
+        counterLabel.setBounds(116f, 4f, 54f, 36f);
         counterLabel.setTouchable(Touchable.disabled);
         addActor(counterLabel);
 
@@ -58,6 +59,25 @@ public class CavaView extends Group implements Disposable {
         tile.setRotation(rotation);
         pile.add(tile);
         addActor(tile);
+    }
+
+    @Override
+    public Actor hit(float x, float y, boolean touchable) {
+        if (!isVisible()) {
+            return null;
+        }
+
+        if (touchable && getTouchable() != Touchable.enabled) {
+            return null;
+        }
+
+        float margin = 24f;
+
+        if (x >= -margin && x <= getWidth() + margin && y >= -margin && y <= getHeight() + margin) {
+            return this;
+        }
+
+        return null;
     }
 
     public void setDisplayedCount(int count) {
@@ -88,7 +108,7 @@ public class CavaView extends Group implements Disposable {
 
         try {
             FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
-            parameter.size = 16;
+            parameter.size = 28;
             parameter.characters = "0123456789";
             parameter.minFilter = Texture.TextureFilter.Linear;
             parameter.magFilter = Texture.TextureFilter.Linear;

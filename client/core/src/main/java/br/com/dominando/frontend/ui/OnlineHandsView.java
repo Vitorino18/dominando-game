@@ -27,6 +27,7 @@ public final class OnlineHandsView extends Group {
     private IntConsumer onSelect = index -> {};
     private boolean selectionEnabled;
     private int selectedIndex = -1;
+    private float boardCenterX;
 
     public OnlineHandsView(DominoAssets assets, float designWidth, float designHeight, float humanY, float opponentY) {
         this.assets = assets;
@@ -36,6 +37,7 @@ public final class OnlineHandsView extends Group {
 
         setSize(designWidth, designHeight);
         setTouchable(Touchable.childrenOnly);
+        boardCenterX = designWidth / 2f;
     }
 
     public void setHands(List<PecaMensagem> hand, int opponentCount) {
@@ -85,6 +87,12 @@ public final class OnlineHandsView extends Group {
 
             layoutTiles(opponentTiles, false);
         }
+    }
+
+    public void setBoardCenterX(float centerX) {
+        boardCenterX = centerX;
+        layoutTiles(humanTiles, true);
+        layoutTiles(opponentTiles, false);
     }
 
     public void setOnSelect(IntConsumer onSelect) {
@@ -147,10 +155,10 @@ public final class OnlineHandsView extends Group {
             return;
         }
 
-        float tileWidth = human ? 88f : 44f;
-        float tileHeight = human ? 164f : 82f;
+        float tileWidth = human ? 98f : 44f;
+        float tileHeight = human ? 182.64f : 82f;
         float gap = human ? 12f : 10f;
-        float availableWidth = human ? 720f : 480f;
+        float availableWidth = human ? 760f : 480f;
         float centerY = human ? humanY : opponentY;
 
         if (human && tiles.size() > 1) {
@@ -161,7 +169,7 @@ public final class OnlineHandsView extends Group {
         float totalWidth = tiles.size() * tileWidth + (tiles.size() - 1) * gap;
 
         float scale = Math.min(1f, availableWidth / totalWidth);
-        float startX = (designWidth - totalWidth * scale) / 2f;
+        float startX = boardCenterX - totalWidth * scale / 2f;
 
         for (int i = 0; i < tiles.size(); i++) {
             DominoTile tile = tiles.get(i);

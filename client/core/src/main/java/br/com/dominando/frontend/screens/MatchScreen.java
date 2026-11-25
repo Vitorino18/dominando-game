@@ -86,8 +86,8 @@ public class MatchScreen extends ScreenAdapter {
     private static final float DEAL_INTERVAL = 0.06f;
     private static final float DEAL_DURATION = 6 * DEAL_INTERVAL + DEAL_SLIDE;
     private static final float PREPARATION_END = SHUFFLE_END + DEAL_DURATION + 0.35f;
-    private static final float STONE_WIDTH = 60f;
-    private static final float STONE_HEIGHT = 111.82f;
+    private static final float STONE_WIDTH = 66f;
+    private static final float STONE_HEIGHT = 123f;
     private static final int CAPS_TO_WIN = 5;
     private final Stage stage;
     private final Texture backgroundTexture;
@@ -182,6 +182,7 @@ public class MatchScreen extends ScreenAdapter {
     private final String onlinePlayerName;
     private final OnlineHandsView onlineHandsView;
 
+
     private final List<PecaMensagem> onlineTable = new ArrayList<>();
 
     private BiConsumer<Integer, LadoJogada> onJogarPecaOnline;
@@ -239,6 +240,7 @@ public class MatchScreen extends ScreenAdapter {
     private DominoTile encontrarOrigemOnline(PecaMensagem peca) {
         for (int i = 0; ; i++) {
             DominoTile tile = onlineHandsView.getTile(true, i);
+            onlineHandsView.setBoardCenterX(OPENING_X);
 
             if (tile == null) {
                 break;
@@ -2337,10 +2339,10 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         boolean local = player == Player.HUMAN;
-        float tileWidth = local ? 88f : 44f;
-        float tileHeight = local ? 164f : 82f;
+        float tileWidth = local ? 98f : 44f;
+        float tileHeight = local ? 182.64f : 82f;
         float gap = local ? 12f : 10f;
-        float availableWidth = local ? 720f : 480f;
+        float availableWidth = local ? 760f : 480f;
         float centerY = local ? HUMAN_HAND_Y : OPPONENT_HAND_Y;
 
         if (local && hand.size() > 1) {
@@ -2350,7 +2352,8 @@ public class MatchScreen extends ScreenAdapter {
 
         float totalWidth = hand.size() * tileWidth + (hand.size() - 1) * gap;
         float scale = Math.min(1f, availableWidth / totalWidth);
-        float startX = (WIDTH - totalWidth * scale) / 2f;
+        float centerX = OPENING_X;
+        float startX = centerX - totalWidth * scale / 2f;
 
         for (int i = 0; i < hand.size(); i++) {
             DominoTile tile = handActors.get(hand.get(i));
@@ -3360,18 +3363,19 @@ public class MatchScreen extends ScreenAdapter {
 
     private static final float PLAY_LEFT = 526f;
     private static final float PLAY_RIGHT = 1420f;
-    private static final float PLAY_BOTTOM = 214f;
+    private static final float PLAY_BOTTOM = 240f;
     private static final float PLAY_TOP = 916f;
-    // Centro do furo desenhado na textura da mesa.
+
+
     private static final float OPENING_X = 974f;
     private static final float OPENING_Y = 542f;
 
-    private static final float HUMAN_HAND_Y = 112f;
+    private static final float HUMAN_HAND_Y = 120f;
     private static final float OPPONENT_HAND_Y = 1000f;
     private static final float CAVA_X = 1314f;
     private static final float CAVA_Y = 864f;
-    private static final float CAVA_SCALE = 0.72f;
-    private static final Rectangle CAVA_AREA = new Rectangle(CAVA_X - 5f, CAVA_Y - 5f, 133f, 97f);
+    private static final float CAVA_SCALE = 0.86f;
+    private static final Rectangle CAVA_AREA = new Rectangle(CAVA_X - 24f * CAVA_SCALE, CAVA_Y - 24f * CAVA_SCALE, 218f * CAVA_SCALE, 168f * CAVA_SCALE);
     private static final Rectangle OPPONENT_CAPS_AREA = new Rectangle(470f, 880f, 160f, 164f);
 
     private static final float BODY_WIDTH = STONE_WIDTH * 152f / 176f;
