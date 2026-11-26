@@ -273,8 +273,9 @@ public final class IntervalView extends Group implements Disposable {
         addActor(hotspot);
 
         onClick(hotspot, () -> {
-            if (isTimeUp() || isReconnecting() || selectedSnack != null
-                || boughtSnacks.contains(snack) || boughtThisInterval) {
+            if (isTimeUp()
+                || isReconnecting()
+                || selectedSnack != null) {
                 return;
             }
 
@@ -529,6 +530,15 @@ public final class IntervalView extends Group implements Disposable {
             }
         }
 
+        if (orderState == OrderState.DETAIL
+            && (boughtThisInterval || boughtSnacks.contains(snack))) {
+            buttonText = "VOLTAR À LOJA";
+            disabled = false;
+            canClose = true;
+
+            note = boughtSnacks.contains(snack) ? "Você já comprou este petisco. " + "Consulte acima como utilizar." : "Você já comprou neste intervalo. " + "Pode consultar os efeitos dos outros petiscos.";
+        }
+
         switch (orderState) {
             case SENDING:
                 buttonText = "ENVIANDO...";
@@ -540,11 +550,11 @@ public final class IntervalView extends Group implements Disposable {
                 title = "Pedido Confirmado!";
                 subtitle = snack.displayName;
                 description = "Seu petisco está reservado para a próxima rodada. " + "Aguarde o fim do intervalo.";
-                note = "Você já comprou neste intervalo. Poderá comprar outro no próximo.";
+                note = "Você já comprou neste intervalo. " + "Poderá comprar outro no próximo.";
                 priceLabel = "Compra";
-                buttonText = "AGUARDE...";
-                disabled = true;
-                canClose = false;
+                buttonText = "VOLTAR À LOJA";
+                disabled = false;
+                canClose = true;
                 break;
 
             case REFUSED:
@@ -577,7 +587,8 @@ public final class IntervalView extends Group implements Disposable {
             return;
         }
 
-        if (orderState == OrderState.REFUSED) {
+        if (orderState == OrderState.REFUSED || orderState == OrderState.CONFIRMED || (orderState == OrderState.DETAIL
+            && (boughtThisInterval || boughtSnacks.contains(selectedSnack)))) {
             onUiClick.run();
             closeOrderPanel();
             return;

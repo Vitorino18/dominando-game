@@ -229,8 +229,6 @@ public class MatchScreen extends ScreenAdapter {
 
     private List<PecaMensagem> onlineTorresmoHandBefore;
     private long onlinePreparationDeadlineNanos;
-    private TextButton onlineKeepHandButton;
-    private Texture onlineKeepHandTexture;
     private Group onlineTorresmoAnimation;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
@@ -423,19 +421,6 @@ public class MatchScreen extends ScreenAdapter {
 
         aplicarEstadoOnline(onlineState);
         onUsarTorresmoOnline.run();
-    }
-
-    private void manterMaoOnline() {
-        if (!podeDecidirPreparacaoOnline() || onConfirmarPreparacaoOnline == null) {
-            return;
-        }
-
-        onUiClick.run();
-        onlinePendingPreparationRound = onlineState.getNumeroRodada();
-        onlineActionMessage = "Confirmando preparação...";
-
-        aplicarEstadoOnline(onlineState);
-        onConfirmarPreparacaoOnline.run();
     }
 
     private boolean podeComprarOnline() {
@@ -956,28 +941,6 @@ public class MatchScreen extends ScreenAdapter {
 
         controlsFont = createControlsFont();
 
-        onlineKeepHandTexture = new Texture(Gdx.files.internal("ui/interval/botao-compra.png"));
-        onlineKeepHandTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-
-        TextureRegionDrawable keepHandBackground = new TextureRegionDrawable(new TextureRegion(onlineKeepHandTexture));
-        TextButton.TextButtonStyle keepHandStyle = new TextButton.TextButtonStyle(keepHandBackground, keepHandBackground, null, controlsFont);
-
-        keepHandStyle.fontColor = Color.valueOf("3F2412");
-        keepHandStyle.disabledFontColor = Color.valueOf("6B5840");
-
-        onlineKeepHandButton = new TextButton("Manter mão", keepHandStyle);
-        onlineKeepHandButton.getLabel().setFontScale(0.75f);
-        onlineKeepHandButton.setVisible(false);
-
-        onlineKeepHandButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                manterMaoOnline();
-            }
-        });
-
-        gameHud.addActor(onlineKeepHandButton);
-
         passButton = new PassButton(controlsFont);
         passButton.setPosition(134f, 48f);
         passButton.setAvailable(false);
@@ -1467,8 +1430,6 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void atualizarPreparacaoOnline() {
-        onlineKeepHandButton.setVisible(false);
-
         if (onlineState == null
             || !entranceFinished
             || onlineConnectionMessage != null
@@ -1481,30 +1442,26 @@ public class MatchScreen extends ScreenAdapter {
         }
 
         int rodada = onlineState.getNumeroRodada();
-        boolean precisaEscolher = !onlineState.getEstouPreparado() && onlineState.getMeuPetisco() == TipoPetiscoMensagem.TORRESMO;
+
+        boolean podeEscolher = !onlineState.getEstouPreparado() && onlineState.getMeuPetisco() == TipoPetiscoMensagem.TORRESMO;
 
         if (onlinePendingTorresmoRound == rodada) {
             playerInfoView.setTurnPrompt("Trocando mão...");
         } else if (onlinePendingPreparationRound == rodada) {
             playerInfoView.setTurnPrompt("Confirmando...");
-        } else if (precisaEscolher) {
+        } else if (podeEscolher) {
             int segundos = (int) Math.ceil(
                 tempoPreparacaoOnlineRestante()
             );
 
-            onlineKeepHandButton.setVisible(true);
-
-            boolean habilitado = podeDecidirPreparacaoOnline() && onConfirmarPreparacaoOnline != null;
-            onlineKeepHandButton.setDisabled(!habilitado);
-            onlineKeepHandButton.setColor(1f, 1f, 1f, habilitado ? 1f : 0.65f);
-
-            playerInfoView.setTurnPrompt(segundos > 0 ? "Trocar mão? " + segundos + "s" : "Encerrando preparo...");
+            playerInfoView.setTurnPrompt(segundos > 0 ? "Usar torresmo? " + segundos + "s" : "Encerrando preparo...");
         } else {
             playerInfoView.setTurnPrompt("Aguardando preparo");
         }
 
         for (JogadorMensagem jogador : onlineState.getJogadoresList()) {
-            if (!onlinePlayerName.equals(jogador.getNome()) && jogador.getConectado()) {
+            if (!onlinePlayerName.equals(jogador.getNome())
+                && jogador.getConectado()) {
                 opponentInfoView.setTurnPrompt(jogador.getPreparado() ? "Preparado" : "Escolhendo a mão");
             }
         }
@@ -1857,7 +1814,6 @@ public class MatchScreen extends ScreenAdapter {
 
         snackActionView.setPlayerAnchor(playerInfoView.getX(), playerInfoView.getY(), PlayerInfoView.UI_SCALE);
 
-        onlineKeepHandButton.setBounds(playerInfoView.getX() + 4f, playerInfoView.getY() + 128f, 200f, 64f);
     }
 
 
@@ -4168,7 +4124,6 @@ public class MatchScreen extends ScreenAdapter {
         GameAudio.dispose(dealSound);
         GameAudio.dispose(shuffleSound);
         GameAudio.dispose(barAmbience);
-        onlineKeepHandTexture.dispose();
         stage.dispose();
         roundResultView.dispose();
         intervalView.dispose();
