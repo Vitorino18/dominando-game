@@ -59,9 +59,9 @@ public final class RoundResultView extends Group implements Disposable {
     private final Label coinRewardLabel;
     private final Image closedRoundDimmer;
     private final FinalReceipt finalReceipt;
-    private final Sound matchVictorySound = GameAudio.newSound(
-        Gdx.files.internal("audio/vitoria-partida-garrafa.wav")
-    );
+    private final Image roundTitleGlow;
+
+    private final Sound matchVictorySound = GameAudio.newSound(Gdx.files.internal("audio/vitoria-partida-garrafa.wav"));
 
     private final Runnable onUiClick;
 
@@ -85,6 +85,11 @@ public final class RoundResultView extends Group implements Disposable {
         addActor(fallbackTitle);
 
         capGlow = addImage(createCapGlow(), 735f, 315f, 450f, 450f);
+        roundTitleGlow = new Image(capGlow.getDrawable());
+        roundTitleGlow.setTouchable(Touchable.disabled);
+        roundTitleGlow.setVisible(false);
+
+        addActorAfter(closedRoundDimmer, roundTitleGlow);
         humanCap = addImage(load(Gdx.files.internal("ui/score/tampinha-amarela.png")), 840f, 420f, 240f, 240f);
         opponentCap = addImage(load(Gdx.files.internal("ui/score/tampinha-verde.png")), 840f, 420f, 240f, 240f);
         humanCap.setScaling(Scaling.fit);
@@ -181,15 +186,44 @@ public final class RoundResultView extends Group implements Disposable {
     public void showWinningPlay(boolean humanWon) {
         resetContent();
 
-        Image artwork = humanWon ? humanTitle : opponentTitle;
-        if (artwork != null) {
-            artwork.setBounds(708f, 920f, 504f, 154f);
+        closedRoundDimmer.setVisible(true);
+        description.setVisible(false);
+
+        roundTitleGlow.setBounds(
+            500f, 460f, 920f, 420f
+        );
+        roundTitleGlow.setOrigin(Align.center);
+        roundTitleGlow.setScale(0.85f);
+        roundTitleGlow.getColor().a = 0f;
+        roundTitleGlow.setVisible(humanWon);
+
+        if (humanWon) {
+            roundTitleGlow.addAction(Actions.sequence(
+                Actions.delay(0.45f),
+                Actions.parallel(
+                    Actions.fadeIn(0.35f),
+                    Actions.scaleTo(
+                        1f, 1f, 0.55f, Interpolation.smooth
+                    )
+                ),
+                Actions.forever(Actions.sequence(
+                    Actions.alpha(0.65f, 0.8f),
+                    Actions.alpha(1f, 0.8f)
+                ))
+            ));
         }
 
-        fallbackTitle.setY(872f);
+        Image artwork = humanWon ? humanTitle : opponentTitle;
         showTitle(artwork, humanWon ? "RODADA SUA!" : "RODADA DO ADVERSÁRIO");
 
-        description.setVisible(false);
+        if (artwork != null) {
+            artwork.setBounds(600f, getHeight() + 40f, 720f, 220f);
+            artwork.addAction(Actions.moveTo(600f, 560f, 0.70f, Interpolation.pow3Out));
+        } else {
+            fallbackTitle.setBounds(480f, getHeight() + 40f, 960f, 240f);
+            fallbackTitle.addAction(Actions.moveTo(480f, 550f, 0.70f, Interpolation.pow3Out));
+        }
+
         reveal();
     }
 
@@ -198,14 +232,15 @@ public final class RoundResultView extends Group implements Disposable {
         float centerX = getWidth() / 2f;
         float capSize = 120f;
         float gap = 16f;
+        rewardLabel.setText(humanWon ? "+1 TAMPINHA" : "+1 PARA O ADVERSÁRIO");
         float textWidth = rewardLabel.getPrefWidth();
         float totalWidth = capSize + gap + textWidth;
         float capX = centerX - totalWidth / 2f;
 
-        cap.setBounds(capX, 76f, capSize, capSize);
-        capGlow.setBounds(capX + (capSize - 220f) / 2f, 26f, 220f, 220f);
+        cap.setBounds(capX, 350f, capSize, capSize);
+        capGlow.setBounds(capX + (capSize - 220f) / 2f, 300f, 220f, 220f);
         capGlow.setColor(humanWon ? 1f : 0.45f, 1f, 1f, 1f);
-        rewardLabel.setBounds(capX + capSize + gap, 96f, textWidth, 80f);
+        rewardLabel.setBounds(capX + capSize + gap, 370f, textWidth, 80f);
 
         capGlow.setVisible(true);
         cap.setVisible(true);
@@ -218,9 +253,6 @@ public final class RoundResultView extends Group implements Disposable {
 
     public void showWinningCoins(int amount) {
         coinRewardLabel.setText("+" + amount + (amount == 1 ? " MOEDA" : " MOEDAS"));
-        humanCap.setVisible(false);
-        capGlow.setVisible(false);
-        rewardLabel.setVisible(false);
 
         float coinSize = 96f;
         float overlapOffset = 24f;
@@ -229,7 +261,7 @@ public final class RoundResultView extends Group implements Disposable {
         float textWidth = coinRewardLabel.getPrefWidth();
         float pileX = (getWidth() - pileWidth - gap - textWidth) / 2f;
 
-        float backY = 76f;
+        float backY = 186f;
         float frontX = pileX + overlapOffset;
         float frontY = backY + overlapOffset;
 
@@ -239,7 +271,7 @@ public final class RoundResultView extends Group implements Disposable {
         frontCoin.setPosition(frontX, frontY + 16f);
         frontCoin.setVisible(false);
 
-        coinRewardLabel.setBounds(pileX + pileWidth + gap, 96f, textWidth, 80f);
+        coinRewardLabel.setBounds(pileX + pileWidth + gap, 206f, textWidth, 80f);
         coinRewardLabel.setVisible(false);
 
         frontCoin.addAction(Actions.sequence(
@@ -306,8 +338,25 @@ public final class RoundResultView extends Group implements Disposable {
     private void resetContent() {
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
-        if (humanTitle != null) humanTitle.setVisible(false);
-        if (opponentTitle != null) opponentTitle.setVisible(false);
+        if (humanTitle != null) {
+            humanTitle.clearActions();
+            humanTitle.setBounds(600f, 690f, 720f, 220f);
+            humanTitle.setVisible(false);
+        }
+
+        if (opponentTitle != null) {
+            opponentTitle.clearActions();
+            opponentTitle.setBounds(600f, 690f, 720f, 220f);
+            opponentTitle.setVisible(false);
+        }
+
+        roundTitleGlow.clearActions();
+        roundTitleGlow.setVisible(false);
+        roundTitleGlow.setScale(1f);
+        roundTitleGlow.getColor().a = 1f;
+
+        fallbackTitle.clearActions();
+        fallbackTitle.setBounds(480f, 730f, 960f, 240f);
         fallbackTitle.setVisible(false);
         humanCap.setVisible(false);
         opponentCap.setVisible(false);

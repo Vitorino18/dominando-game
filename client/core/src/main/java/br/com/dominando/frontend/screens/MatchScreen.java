@@ -715,12 +715,7 @@ public class MatchScreen extends ScreenAdapter {
                     showCoinReward(moedasRecebidas);
                 }
             }),
-            Actions.delay(
-                onlineState.getFase() == FasePartidaMensagem.LOJA_PETISCOS
-                    || (venceu && moedasRecebidas > 0)
-                    ? 2f
-                    : 0f
-            ),
+            Actions.delay(2f),
             Actions.fadeOut(0.25f, Interpolation.smooth),
             Actions.run(this::terminarResultadoOnline)
         ));
