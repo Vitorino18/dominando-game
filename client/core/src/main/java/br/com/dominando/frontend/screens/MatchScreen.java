@@ -572,15 +572,12 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private void atualizarLojaOnline() {
-        if (onlineState == null) {
+        if (onlineState == null
+            || intervalFade.getParent() != null) {
             return;
         }
 
-        boolean naLoja =
-            onlineState.getFase() == FasePartidaMensagem.LOJA_PETISCOS
-                && !onlineState.getCompeticaoEncerrada();
-
-        if (naLoja) {
+        if (lojaOnlineAtiva()) {
             if (onlineShowingResult || onlineFinalShown) {
                 return;
             }
@@ -588,14 +585,32 @@ public class MatchScreen extends ScreenAdapter {
             if (!intervalView.isVisible()) {
                 bloquearInteracaoOnline();
 
-                intervalView.openOnline(
-                    humanCoins,
-                    tempoLojaOnlineRestante(),
-                    onlineState.getJaCompreiNestaLoja(),
-                    this::solicitarCompraPetiscoOnline
-                );
+                fadeInterval(() -> {
+                    if (!lojaOnlineAtiva()
+                        || onlineShowingResult
+                        || onlineFinalShown) {
+                        return;
+                    }
 
-                intervalView.toFront();
+                    intervalView.openOnline(
+                        humanCoins,
+                        tempoLojaOnlineRestante(),
+                        onlineState.getJaCompreiNestaLoja(),
+                        this::solicitarCompraPetiscoOnline
+                    );
+
+                    intervalView.setOnlineOffers(
+                        onlineState.getPetiscosLojaList()
+                    );
+
+                    intervalView.setReconnecting(
+                        onlineConnectionMessage != null
+                    );
+
+                    intervalView.toFront();
+                });
+
+                return;
             }
 
             intervalView.setOnlineOffers(
@@ -609,8 +624,8 @@ public class MatchScreen extends ScreenAdapter {
             );
 
             if (onlineState.getJaCompreiNestaLoja()
-                && onlinePendingPurchaseRound == onlineState.getNumeroRodada()) {
-
+                && onlinePendingPurchaseRound
+                == onlineState.getNumeroRodada()) {
                 confirmarCompraPetiscoOnline(
                     onlineState.getNumeroRodada(),
                     "COMPRA_REALIZADA"
@@ -620,6 +635,7 @@ public class MatchScreen extends ScreenAdapter {
             intervalView.setReconnecting(
                 onlineConnectionMessage != null
             );
+
             return;
         }
 
@@ -627,29 +643,45 @@ public class MatchScreen extends ScreenAdapter {
             return;
         }
 
-        intervalView.closeOnline();
-        onlinePendingPurchaseRound = -1;
-        gameHud.setTouchable(Touchable.childrenOnly);
+        fadeInterval(() -> {
+            if (onlineState == null || lojaOnlineAtiva()) {
+                return;
+            }
 
-        boolean distribuir =
-            !onlineShowingResult
-                && !onlineFinalShown
-                && onlineState.getPecasMesaCount() == 0
-                && onlineState.getMinhaMaoCount() == 7
-                && onlineState.getPecasBaralho() == 14;
+            intervalView.closeOnline();
+            onlinePendingPurchaseRound = -1;
+            gameHud.setTouchable(Touchable.childrenOnly);
 
-        for (JogadorMensagem jogador : onlineState.getJogadoresList()) {
-            distribuir = distribuir && jogador.getQuantidadePecas() == 7;
-        }
+            boolean distribuir =
+                !onlineShowingResult
+                    && !onlineFinalShown
+                    && !onlineState.getCompeticaoEncerrada()
+                    && onlineState.getPecasMesaCount() == 0
+                    && onlineState.getMinhaMaoCount() == 7
+                    && onlineState.getPecasBaralho() == 14;
 
-        if (distribuir) {
-            entranceFinished = false;
-            entranceTime = ENTRANCE_DURATION;
+            for (JogadorMensagem jogador
+                : onlineState.getJogadoresList()) {
+                distribuir = distribuir
+                    && jogador.getQuantidadePecas() == 7;
+            }
 
-            aplicarEstadoOnline(onlineState);
-            updateEntrance();
-            playShuffleSound();
-        }
+            if (distribuir) {
+                entranceFinished = false;
+                entranceTime = ENTRANCE_DURATION;
+
+                aplicarEstadoOnline(onlineState);
+                updateEntrance();
+                playShuffleSound();
+            }
+        });
+    }
+
+    private boolean lojaOnlineAtiva() {
+        return onlineState != null
+            && !onlineState.getCompeticaoEncerrada()
+            && onlineState.getFase()
+            == FasePartidaMensagem.LOJA_PETISCOS;
     }
 
     private void mostrarRodadaOnline(boolean venceu, int minhasTampinhas, int tampinhasAdversario, int moedasRecebidas) {
