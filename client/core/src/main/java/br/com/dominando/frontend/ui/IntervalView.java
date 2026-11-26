@@ -18,6 +18,9 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.audio.Music;
+
+import br.com.dominando.frontend.audio.GameAudio;
 
 import br.com.dominando.grpc.PetiscoLojaMensagem;
 import br.com.dominando.grpc.TipoPetiscoMensagem;
@@ -104,6 +107,9 @@ public final class IntervalView extends Group implements Disposable {
     private Consumer<Snack> onOnlinePurchaseRequested;
     private final List<PetiscoLojaMensagem> onlineOffers = new ArrayList<>();
 
+    private final Music shopAmbience;
+    private float shopAmbienceLevel;
+    private float warningPulseTime;
 
     private BitmapFont createFont(String file, int size) {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
@@ -122,6 +128,11 @@ public final class IntervalView extends Group implements Disposable {
 
     public IntervalView(Runnable onUiClick) {
         this.onUiClick = onUiClick;
+
+        shopAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
+        shopAmbience.setLooping(true);
+        GameAudio.setVolume(shopAmbience, 0f);
+
         setSize(1920f, 1080f);
         setVisible(false);
         setTouchable(Touchable.enabled);
@@ -225,6 +236,43 @@ public final class IntervalView extends Group implements Disposable {
 
         reconnectDialog = addImage(load("reconexao.png"), 640f, 341f, 640f, 390f);
         reconnectDialog.setVisible(false);
+    }
+
+    private void updateShopAmbience(float delta) {
+        float target = isReconnecting() ? 0f : 0.32f * Math.min(1f, Math.max(0f, remaining));
+
+        float step = Math.max(0f, delta) * 0.60f;
+        float difference = target - shopAmbienceLevel;
+
+        shopAmbienceLevel += Math.max(-step, Math.min(step, difference));
+
+        GameAudio.setVolume(shopAmbience, shopAmbienceLevel);
+
+        if (shopAmbienceLevel <= 0.001f) {
+            GameAudio.stop(shopAmbience);
+        } else if (!shopAmbience.isPlaying()) {
+            GameAudio.play(shopAmbience);
+        }
+    }
+
+    private void updateWarningMotion(float delta) {
+        boolean shake = remaining > 0f && remaining <= 5f && !isReconnecting();
+        warningPulseTime = shake ? warningPulseTime + Math.max(0f, delta) : 0f;
+        float offset = shake ? (float) Math.sin(warningPulseTime * 26f) * 5f : 0f;
+
+        warning.setX(1408f + offset);
+        warningTimerLabel.setX(1766f + offset);
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        super.setVisible(visible);
+
+        if (!visible && shopAmbience != null) {
+            GameAudio.stop(shopAmbience);
+            shopAmbienceLevel = 0f;
+            warningPulseTime = 0f;
+        }
     }
 
     public void resize(GameViewport viewport) {
@@ -660,6 +708,8 @@ public final class IntervalView extends Group implements Disposable {
             remaining = Math.max(0f, remaining - delta);
         }
         refreshClock();
+        updateShopAmbience(delta);
+        updateWarningMotion(delta);
 
         if (!onlineMode && orderState == OrderState.SENDING && !isReconnecting() && !isTimeUp()) {
             responseTime -= delta;
@@ -715,6 +765,7 @@ public final class IntervalView extends Group implements Disposable {
         font.dispose();
         detailFont.dispose();
         displayFont.dispose();
+        GameAudio.dispose(shopAmbience);
         for (Texture texture : textures) {
             texture.dispose();
         }
