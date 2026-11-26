@@ -21,6 +21,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.audio.Music;
 
 import br.com.dominando.frontend.audio.GameAudio;
+import br.com.dominando.frontend.audio.ShopAudio;
 
 import br.com.dominando.grpc.PetiscoLojaMensagem;
 import br.com.dominando.grpc.TipoPetiscoMensagem;
@@ -111,6 +112,8 @@ public final class IntervalView extends Group implements Disposable {
     private float shopAmbienceLevel;
     private float warningPulseTime;
 
+    private final ShopAudio shopAudio;
+
     private BitmapFont createFont(String file, int size) {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
 
@@ -128,6 +131,7 @@ public final class IntervalView extends Group implements Disposable {
 
     public IntervalView(Runnable onUiClick) {
         this.onUiClick = onUiClick;
+        shopAudio = new ShopAudio();
 
         shopAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
         shopAmbience.setLooping(true);
@@ -241,6 +245,8 @@ public final class IntervalView extends Group implements Disposable {
     private void updateShopAmbience(float delta) {
         float target = isReconnecting() ? 0f : 0.32f * Math.min(1f, Math.max(0f, remaining));
 
+        target *= shopAudio.getAmbienceMultiplier(remaining);
+
         float step = Math.max(0f, delta) * 0.60f;
         float difference = target - shopAmbienceLevel;
 
@@ -272,6 +278,10 @@ public final class IntervalView extends Group implements Disposable {
             GameAudio.stop(shopAmbience);
             shopAmbienceLevel = 0f;
             warningPulseTime = 0f;
+        }
+
+        if (!visible && shopAudio != null) {
+            shopAudio.stop();
         }
     }
 
@@ -353,6 +363,8 @@ public final class IntervalView extends Group implements Disposable {
         refreshClock();
         setVisible(true);
 
+        shopAudio.open(remaining);
+
         onlineMode = false;
         onOnlinePurchaseRequested = null;
     }
@@ -376,6 +388,8 @@ public final class IntervalView extends Group implements Disposable {
         refreshOffers();
         refreshClock();
         setVisible(true);
+
+        shopAudio.open(remaining);
     }
 
     public void setOnlineOffers(List<PetiscoLojaMensagem> offers) {
@@ -708,6 +722,7 @@ public final class IntervalView extends Group implements Disposable {
             remaining = Math.max(0f, remaining - delta);
         }
         refreshClock();
+        shopAudio.update(remaining, isReconnecting());
         updateShopAmbience(delta);
         updateWarningMotion(delta);
 
@@ -766,6 +781,7 @@ public final class IntervalView extends Group implements Disposable {
         detailFont.dispose();
         displayFont.dispose();
         GameAudio.dispose(shopAmbience);
+        shopAudio.dispose();
         for (Texture texture : textures) {
             texture.dispose();
         }

@@ -1,0 +1,18 @@
+Sons da loja — Desce Uma
+
+assovio-loja.wav
+wolf_whistle.wav — fauxpress
+https://freesound.org/people/fauxpress/sounds/42197/
+
+garcom-murmurio.wav
+Indistinct deep male mumble — dynamique
+https://freesound.org/people/dynamique/sounds/536967/
+Adaptacoes: corte, conversao para mono, ajuste de volume e fades.
+
+relogio-tic.wav e relogio-tac.wav
+Tick Tock Dry — GammaGool
+https://freesound.org/people/GammaGool/sounds/759501/
+Adaptacoes: cortes, conversao para mono, ajuste de volume e fades.
+
+Licenca dos originais: CC0 1.0
+https://creativecommons.org/publicdomain/zero/1.0/
