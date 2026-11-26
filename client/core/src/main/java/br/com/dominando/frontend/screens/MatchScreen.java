@@ -86,8 +86,8 @@ public class MatchScreen extends ScreenAdapter {
     private static final float DEAL_INTERVAL = 0.06f;
     private static final float DEAL_DURATION = 6 * DEAL_INTERVAL + DEAL_SLIDE;
     private static final float PREPARATION_END = SHUFFLE_END + DEAL_DURATION + 0.35f;
-    private static final float STONE_WIDTH = 66f;
-    private static final float STONE_HEIGHT = 123f;
+    private static final float STONE_WIDTH = 60f;
+    private static final float STONE_HEIGHT = 111.82f;
     private static final int CAPS_TO_WIN = 5;
     private final Stage stage;
     private final Texture backgroundTexture;
