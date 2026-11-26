@@ -18,9 +18,11 @@ import com.badlogic.gdx.utils.Disposable;
 import java.util.Locale;
 
 public class PlayerInfoView extends Group implements Disposable {
-    public static final float WIDTH = 328f;
-    public static final float BODY_HEIGHT = 112f;
-    public static final float SHADOW_HEIGHT = 4f;
+    public static final float UI_SCALE = 1.10f;
+
+    public static final float WIDTH = 328f * UI_SCALE;
+    public static final float BODY_HEIGHT = 112f * UI_SCALE;
+    public static final float SHADOW_HEIGHT = 4f * UI_SCALE;
     public static final float TOTAL_HEIGHT = BODY_HEIGHT + SHADOW_HEIGHT;
 
     private final boolean avatarOnRight;
@@ -51,9 +53,9 @@ public class PlayerInfoView extends Group implements Disposable {
         normalAvatarTexture = loadTexture("avatar-normal.png");
         activeAvatarTexture = loadTexture("avatar-turno.png");
 
-        initialFont = createFont(32);
-        nameFont = createFont(24);
-        statusFont = createFont(20);
+        initialFont = createFont(Math.round(32f * UI_SCALE));
+        nameFont = createFont(Math.round(24f * UI_SCALE));
+        statusFont = createFont(Math.round(20f * UI_SCALE));
 
         background = new Image(backgroundTexture);
         background.setBounds(0f, 0f, WIDTH, TOTAL_HEIGHT);
@@ -138,7 +140,7 @@ public class PlayerInfoView extends Group implements Disposable {
     }
 
     private void place(com.badlogic.gdx.scenes.scene2d.Actor actor, float x, float top, float width, float height) {
-        actor.setBounds(x, TOTAL_HEIGHT - top - height, width, height);
+        actor.setBounds(x * UI_SCALE, TOTAL_HEIGHT - (top + height) * UI_SCALE, width * UI_SCALE, height * UI_SCALE);
         actor.setTouchable(Touchable.disabled);
     }
 

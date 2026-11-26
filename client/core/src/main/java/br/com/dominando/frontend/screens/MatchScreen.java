@@ -1855,7 +1855,7 @@ public class MatchScreen extends ScreenAdapter {
 
         passButton.setPosition(opponentInfoView.getX() + (opponentInfoView.getWidth() - passButton.getWidth()) / 2f, bottom + margin);
 
-        snackActionView.setPlayerAnchor(playerInfoView.getX(), playerInfoView.getY());
+        snackActionView.setPlayerAnchor(playerInfoView.getX(), playerInfoView.getY(), PlayerInfoView.UI_SCALE);
 
         onlineKeepHandButton.setBounds(playerInfoView.getX() + 4f, playerInfoView.getY() + 128f, 200f, 64f);
     }
@@ -3660,7 +3660,7 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     private static final class PassButton extends Group implements Disposable {
-        private static final float SIZE = 152f;
+        private static final float SIZE = 176f;
         private static final int FRAME_SIZE = 256;
 
         private final Texture texture;

@@ -80,9 +80,9 @@ public final class SnackActionView extends Group implements Disposable {
         hideHighlight();
     }
 
-    public void setPlayerAnchor(float x, float y) {
-        base.setPosition(x, y + 4f);
-        button.setPosition(x + 212f, y + 112f);
+    public void setPlayerAnchor(float x, float y, float scale) {
+        base.setBounds(x, y + 4f * scale, 344f * scale, 240f * scale);
+        button.setBounds(x + 212f * scale, y + 112f * scale, 120f * scale, 120f * scale);
     }
 
     public void showSnack(Snack snack) {

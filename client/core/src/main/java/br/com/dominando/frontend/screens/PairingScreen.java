@@ -497,6 +497,15 @@ public class PairingScreen extends ScreenAdapter {
 
         TextField field = new TextField("", style);
         field.setMessageText(placeholder);
+        field.setFocusTraversal(false);
+        field.setTextFieldListener(new TextField.TextFieldListener() {
+            @Override
+            public void keyTyped(TextField textField, char character) {
+                if (character == '\n' || character == '\r') {
+                    finishTyping();
+                }
+            }
+        });
 
         place(field, x, top, 620f, 108f);
         stage.addActor(field);
