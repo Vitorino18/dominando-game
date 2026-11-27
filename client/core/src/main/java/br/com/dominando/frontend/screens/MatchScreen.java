@@ -52,6 +52,7 @@ import br.com.dominando.frontend.ui.SnackActionView;
 import br.com.dominando.frontend.ui.IntervalView.Snack;
 import br.com.dominando.frontend.audio.GameAudio;
 import br.com.dominando.frontend.ui.OnlineHandsView;
+import br.com.dominando.frontend.ui.TableImpact;
 
 import br.com.dominando.grpc.EstadoJogoResponse;
 import br.com.dominando.grpc.JogadorMensagem;
@@ -230,6 +231,9 @@ public class MatchScreen extends ScreenAdapter {
     private List<PecaMensagem> onlineTorresmoHandBefore;
     private long onlinePreparationDeadlineNanos;
     private Group onlineTorresmoAnimation;
+
+    private final TableImpact tableImpact;
+    private boolean suppressImpactAfterReconnect;
 
     public MatchScreen(Runnable onLeaveMatch, Runnable onUiClick) {
         this(onLeaveMatch, onUiClick, null, null);
@@ -833,6 +837,7 @@ public class MatchScreen extends ScreenAdapter {
         roundVictorySound = GameAudio.newSound(Gdx.files.internal("audio/vitoria-rodada-mesa.wav"));
         coinRewardSound = GameAudio.newSound(Gdx.files.internal("audio/moedas-recompensa.wav"));
         snackPurchaseSound = GameAudio.newSound(Gdx.files.internal("audio/compra-petisco.wav"));
+        tableImpact = new TableImpact();
 
         backgroundTexture = new Texture(Gdx.files.internal("ui/match/cenario-chegada.png"));
         backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -1032,7 +1037,43 @@ public class MatchScreen extends ScreenAdapter {
         }
     }
 
-    private void atualizarMesaOnline(List<PecaMensagem> mesa) {
+    private int stonesRemainingForImpact(EstadoJogoResponse previous, EstadoJogoResponse current) {
+        if (previous == null
+            || suppressImpactAfterReconnect
+            || !isTableAmbienceAllowed()
+            || previous.getNumeroRodada() != current.getNumeroRodada()
+            || previous.getFase() != FasePartidaMensagem.EM_ANDAMENTO
+            || current.getFase() != FasePartidaMensagem.EM_ANDAMENTO
+            || current.getPecasMesaCount()
+            != previous.getPecasMesaCount() + 1) {
+            return -1;
+        }
+
+        String mover = previous.getJogadorDaVez();
+
+        if (onlinePlayerName.equals(mover)) {
+            return current.getMinhaMaoCount() == previous.getMinhaMaoCount() - 1 ? current.getMinhaMaoCount() : -1;
+        }
+
+        int before = -1;
+        int after = -1;
+
+        for (JogadorMensagem player : previous.getJogadoresList()) {
+            if (mover.equals(player.getNome())) {
+                before = player.getQuantidadePecas();
+            }
+        }
+
+        for (JogadorMensagem player : current.getJogadoresList()) {
+            if (mover.equals(player.getNome())) {
+                after = player.getQuantidadePecas();
+            }
+        }
+
+        return before > 0 && after == before - 1 ? after : -1;
+    }
+
+    private void atualizarMesaOnline(List<PecaMensagem> mesa, int stonesRemaining) {
         if (onlineTable.equals(mesa)) {
             return;
         }
@@ -1087,7 +1128,7 @@ public class MatchScreen extends ScreenAdapter {
 
         if (animar) {
             applyChainLayout(poses, novaPeca);
-            animarJogadaOnline(chainActors.get(novaPeca), poses.get(novaPeca));
+            animarJogadaOnline(chainActors.get(novaPeca), poses.get(novaPeca), stonesRemaining);
         } else {
             for (Map.Entry<Placement, DominoTile> entry : chainActors.entrySet()) {
                 poses.get(entry.getKey()).applyTo(entry.getValue());
@@ -1099,23 +1140,25 @@ public class MatchScreen extends ScreenAdapter {
 
     }
 
-    private void animarJogadaOnline(DominoTile tile, Pose destino) {
+    private void animarJogadaOnline(DominoTile tile, Pose destino, int stonesRemaining) {
         float duration = CHAIN_MOVE_DURATION;
+        final int roundNumber = onlineState.getNumeroRodada();
 
         tile.toFront();
-
         tile.addAction(Actions.sequence(
             Actions.parallel(
                 Actions.moveTo(destino.x, destino.y, duration, Interpolation.smooth),
                 Actions.sizeTo(destino.width, destino.height, duration, Interpolation.smooth),
-                Actions.rotateTo(destino.rotation, duration, Interpolation.smooth),
-                Actions.sequence(Actions.delay(Math.max(0f, duration - 0.05f)),
-                    Actions.run(() -> {
-                        GameAudio.play(dealSound, 0.65f);
-                    })
-                )
+                Actions.rotateTo(destino.rotation, duration, Interpolation.smooth)
             ),
             Actions.run(() -> {
+                if (stonesRemaining >= 0
+                    && onlineState.getNumeroRodada() == roundNumber
+                    && !suppressImpactAfterReconnect
+                    && isTableAmbienceAllowed()) {
+                    tableImpact.hit(stonesRemaining);
+                }
+
                 movingStone = false;
                 aplicarEstadoOnline(onlineState);
             })
@@ -1376,7 +1419,13 @@ public class MatchScreen extends ScreenAdapter {
             ));
         }
 
-        atualizarMesaOnline(estado.getPecasMesaList());
+        int stonesRemaining = stonesRemainingForImpact(anterior, estado);
+        atualizarMesaOnline(estado.getPecasMesaList(), stonesRemaining);
+
+        if (onlineConnectionMessage == null && estado != anterior) {
+            suppressImpactAfterReconnect = false;
+        }
+
         onlineHandsView.setHands(estado.getMinhaMaoList(), adversario.getQuantidadePecas());
         atualizarTrocaCoxinhaOnline();
         atualizarDecisoesPreparacaoOnline();
@@ -1810,6 +1859,10 @@ public class MatchScreen extends ScreenAdapter {
     }
 
     public void setOnlineConnectionMessage(String mensagem) {
+        if (mensagem != null) {
+            suppressImpactAfterReconnect = true;
+        }
+
         onlineConnectionMessage = mensagem;
 
         if (onlineState != null) {
@@ -3110,17 +3163,10 @@ public class MatchScreen extends ScreenAdapter {
             Actions.parallel(
                 Actions.moveTo(target.x, target.y, duration, Interpolation.smooth),
                 Actions.sizeTo(target.width, target.height, duration, Interpolation.smooth),
-                Actions.rotateTo(target.rotation, duration, Interpolation.smooth),
-                Actions.sequence(
-                    Actions.delay(Math.max(0f, duration - 0.05f)),
-                    Actions.run(() -> {
-                        if (gameSettings.isSoundEffectsEnabled()) {
-                            GameAudio.play(dealSound, 0.65f);
-                        }
-                    })
-                )
+                Actions.rotateTo(target.rotation, duration, Interpolation.smooth)
             ),
             Actions.run(() -> {
+                tableImpact.hit(round.hand(mover).size());
                 movingStone = false;
                 refreshTurn();
             })
@@ -4013,7 +4059,7 @@ public class MatchScreen extends ScreenAdapter {
         refreshOnlinePreviews();
         atualizarControlesOnline();
 
-        stage.draw();
+        tableImpact.draw(stage, tableImage, tilesLayer, dt, isTableAmbienceAllowed());
     }
 
     @Override
@@ -4089,7 +4135,7 @@ public class MatchScreen extends ScreenAdapter {
 
         redistributionMessage.setVisible(showRedistribution);
         snackActionView.setButtonEnabled(canUseEgg() || canUseCoxinha() || canUseTorresmo());
-        stage.draw();
+        tableImpact.draw(stage, tableImage, tilesLayer, dt, isTableAmbienceAllowed());
     }
 
     @Override
@@ -4113,6 +4159,7 @@ public class MatchScreen extends ScreenAdapter {
 
     @Override
     public void hide() {
+        tableImpact.stop();
         GameAudio.stop(barAmbience);
         limparAnimacaoTorresmoOnline();
         shuffleSound.stop();
@@ -4143,6 +4190,7 @@ public class MatchScreen extends ScreenAdapter {
     public void dispose() {
         hide();
 
+        tableImpact.dispose();
         GameAudio.dispose(snackPurchaseSound);
         GameAudio.dispose(coinRewardSound);
         GameAudio.dispose(roundVictorySound);
