@@ -61,6 +61,8 @@ public final class RoundResultView extends Group implements Disposable {
     private final FinalReceipt finalReceipt;
     private final Image roundTitleGlow;
 
+    private final MatchCelebrationView matchCelebration;
+
     private final Sound matchVictorySound = GameAudio.newSound(Gdx.files.internal("audio/vitoria-partida-garrafa.wav"));
 
     private final Runnable onUiClick;
@@ -119,6 +121,9 @@ public final class RoundResultView extends Group implements Disposable {
 
         finalReceipt = new FinalReceipt(onReturnToStart, onPlayAgain);
         addActor(finalReceipt);
+
+        matchCelebration = new MatchCelebrationView(displayFont, textFont, capGlow.getDrawable());
+        addActor(matchCelebration);
     }
 
     private Texture createCapGlow() {
@@ -296,15 +301,44 @@ public final class RoundResultView extends Group implements Disposable {
     }
 
     public void showMatchWinner(boolean humanWon, int human, int opponent) {
+        showMatchWinner(humanWon, human, opponent, true);
+    }
+
+    private void showMatchWinner(boolean humanWon, int human, int opponent, boolean celebrate) {
+        clearActions();
         resetContent();
+
         closedRoundDimmer.setVisible(true);
         description.setVisible(false);
+
         finalReceipt.show(humanWon, human, opponent);
+        setTouchable(Touchable.enabled);
+
+        if (celebrate) {
+            finalReceipt.setVisible(false);
+            matchCelebration.start(humanWon, human, opponent);
+        }
+
         if (humanWon) {
             GameAudio.play(matchVictorySound, 0.85f);
         }
-        setTouchable(Touchable.enabled);
+
         reveal();
+
+        if (celebrate) {
+            addAction(Actions.sequence(
+                Actions.delay(MatchCelebrationView.DURATION),
+                Actions.run(() -> {
+                    matchCelebration.stop();
+
+                    finalReceipt.getColor().a = 0f;
+                    finalReceipt.setVisible(true);
+                    finalReceipt.addAction(
+                        Actions.fadeIn(0.30f)
+                    );
+                })
+            ));
+        }
     }
 
     public void showOnlineMatchWinner(boolean humanWon, int human, int opponent) {
@@ -316,7 +350,7 @@ public final class RoundResultView extends Group implements Disposable {
     }
 
     public boolean isFinalReceiptVisible() {
-        return isVisible() && finalReceipt.isVisible();
+        return isVisible() && (finalReceipt.isVisible() || matchCelebration.isVisible());
     }
 
     public void showRematchWaiting() {
@@ -336,6 +370,10 @@ public final class RoundResultView extends Group implements Disposable {
     }
 
     private void resetContent() {
+        matchCelebration.stop();
+        finalReceipt.clearActions();
+        finalReceipt.getColor().a = 1f;
+
         if (closedTitle != null) closedTitle.setVisible(false);
         if (tieTitle != null) tieTitle.setVisible(false);
         if (humanTitle != null) {
@@ -595,7 +633,7 @@ public final class RoundResultView extends Group implements Disposable {
     }
 
     public void showInterruptedMatch(MatchEndReason reason, int human, int opponent) {
-        showMatchWinner(reason != MatchEndReason.OWN_RECONNECT_EXPIRED, human, opponent);
+        showMatchWinner(reason != MatchEndReason.OWN_RECONNECT_EXPIRED, human, opponent, false);
         finalReceipt.showInterrupted(reason);
     }
 
@@ -774,6 +812,7 @@ public final class RoundResultView extends Group implements Disposable {
 
     @Override
     public void dispose() {
+        matchCelebration.dispose();
         GameAudio.dispose(matchVictorySound);
         for (Texture texture : textures) {
             texture.dispose();

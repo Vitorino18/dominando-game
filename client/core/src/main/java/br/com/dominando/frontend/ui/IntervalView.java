@@ -114,6 +114,8 @@ public final class IntervalView extends Group implements Disposable {
 
     private final ShopAudio shopAudio;
 
+    private volatile boolean shopAmbienceFinished;
+
     private BitmapFont createFont(String file, int size) {
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("fonts/" + file));
 
@@ -133,8 +135,9 @@ public final class IntervalView extends Group implements Disposable {
         this.onUiClick = onUiClick;
         shopAudio = new ShopAudio();
 
-        shopAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-bar.ogg"));
-        shopAmbience.setLooping(true);
+        shopAmbience = GameAudio.newMusic(Gdx.files.internal("audio/ambiente-loja.ogg"));
+        shopAmbience.setLooping(false);
+        shopAmbience.setOnCompletionListener(music -> shopAmbienceFinished = true);
         GameAudio.setVolume(shopAmbience, 0f);
 
         setSize(1920f, 1080f);
@@ -256,7 +259,7 @@ public final class IntervalView extends Group implements Disposable {
 
         if (shopAmbienceLevel <= 0.001f) {
             GameAudio.stop(shopAmbience);
-        } else if (!shopAmbience.isPlaying()) {
+        } else if (!shopAmbienceFinished && !shopAmbience.isPlaying()) {
             GameAudio.play(shopAmbience);
         }
     }
@@ -363,6 +366,7 @@ public final class IntervalView extends Group implements Disposable {
         refreshClock();
         setVisible(true);
 
+        shopAmbienceFinished = false;
         shopAudio.open(remaining);
 
         onlineMode = false;
@@ -389,6 +393,7 @@ public final class IntervalView extends Group implements Disposable {
         refreshClock();
         setVisible(true);
 
+        shopAmbienceFinished = false;
         shopAudio.open(remaining);
     }
 

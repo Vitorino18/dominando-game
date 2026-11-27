@@ -16,3 +16,9 @@ Adaptacoes: cortes, conversao para mono, ajuste de volume e fades.
 
 Licenca dos originais: CC0 1.0
 https://creativecommons.org/publicdomain/zero/1.0/
+
+ambiente-loja.ogg
+WL EXT BG BURBU ZDELI.wav — Castleguard
+https://freesound.org/people/Castleguard/sounds/660454/
+Adaptacoes: trecho continuo de 34 segundos, ajuste de volume, fades e conversao para OGG.
+Licenca: CC0 1.0
