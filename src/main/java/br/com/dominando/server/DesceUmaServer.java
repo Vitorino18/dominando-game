@@ -20,11 +20,13 @@ public class DesceUmaServer {
         System.out.println("Aguardando jogadores...");
 
         // Registra uma ação de encerramento quando a JVM for finalizado normalmente //
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Encerrando servidor...");
             servidor.shutdown();
-        })
-        );
+            salaService.encerrar();
+            servidor.shutdownNow();
+        }));
         // evita encerrar o servidor antes de executar o encerramento do servidor //
         servidor.awaitTermination();
     }

@@ -7,6 +7,7 @@ import io.grpc.stub.StreamObserver;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.grpc.Status;
 
 public class AssinaturaJogo {
 
@@ -19,6 +20,8 @@ public class AssinaturaJogo {
 
     private EstadoJogoResponse pendente;
     private boolean enviando;
+
+    private final Object bloqueioObserver = new Object();
 
     public AssinaturaJogo(String token, StreamObserver<EstadoJogoResponse> observer, Executor executor, Runnable remover) {
         this.token = token;
@@ -64,7 +67,13 @@ public class AssinaturaJogo {
             }
 
             try {
-                observer.onNext(estado);
+                synchronized (bloqueioObserver) {
+
+                    if (!ativa.get()) {
+                        return;
+                    }
+                    observer.onNext(estado);
+                }
             } catch (RuntimeException e) {
                 encerrar();
                 return;
@@ -81,7 +90,27 @@ public class AssinaturaJogo {
 
             remover.run();
 
-            System.out.println("[STREAM] Assinatura encerrada. Token: " + token.substring(0, Math.min(6, token.length())) + "...");
+            System.out.println("[STREAM] Assinatura encerrada");
+        }
+    }
+
+    public void encerrarPeloServidor() {
+        if (!ativa.compareAndSet(true, false)) {
+            return;
+        }
+        synchronized (this) {
+            pendente = null;
+        }
+
+        try {
+            synchronized (bloqueioObserver) {
+                observer.onError(Status.NOT_FOUND.withDescription("A sala foi encerrada pelo servidor.").asRuntimeException());
+            }
+        } catch (RuntimeException e) {
+            System.out.println("[STREAM] Cliente já desconectado.");
+        } finally {
+            remover.run();
+            System.out.println("[STREAM] Assinatura encerrada pelo servidor.");
         }
     }
 

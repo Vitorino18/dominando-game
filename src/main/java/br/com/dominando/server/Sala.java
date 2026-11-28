@@ -10,9 +10,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import io.grpc.Status;
 
 public class Sala {
-    private static final int MAX_JOGADORES = 2;
+    private static final int MAX_JOGADORES = ConfiguracaoServidor.MAX_JOGADORES_POR_SALA;
 
     private final String codigo;
     private final List<ParticipanteSala> participantes;
@@ -28,6 +29,13 @@ public class Sala {
     private ScheduledFuture<?> tarefaPreparacao;
     private long versaoPreparacao;
 
+    private long ultimaAtividade = System.nanoTime();
+    private Long desconectadosDesde;
+    private Long competicaoEncerradaDesde;
+
+    private boolean removida = false;
+    private boolean recursosLiberados = false;
+
     public Sala(String codigo, String criador) {
         this.codigo = codigo;
         this.participantes = new ArrayList<>();
@@ -37,15 +45,23 @@ public class Sala {
     }
 
     public synchronized ParticipanteSala adicionarJogador(String nome) {
+        verificarSalaAtiva();
         if (iniciada || participantes.size() >= MAX_JOGADORES) {
             throw new IllegalStateException("A sala está cheia ou já foi iniciada.");
         }
-        if (nome == null || nome.isBlank()) {
-            throw new IllegalArgumentException("O nome do jogador não pode ser vazio.");
+
+        nome = ParticipanteSala.validarNome(nome);
+
+        for (ParticipanteSala participante : participantes) {
+            if (participante.getNome().equalsIgnoreCase(nome)) {
+                throw new IllegalArgumentException("Já existe um jogador com esse nome na sala.");
+            }
         }
 
         ParticipanteSala novo = new ParticipanteSala(nome, false);
+
         participantes.add(novo);
+        registrarAtividade();
 
         return novo;
     }
@@ -68,6 +84,7 @@ public class Sala {
     }
 
     public synchronized void iniciarPartida(String tokenCriador) {
+        verificarSalaAtiva();
         ParticipanteSala solicitante = buscarPorToken(tokenCriador);
 
         if (solicitante == null || !solicitante.isCriador()) {
@@ -87,9 +104,13 @@ public class Sala {
         partidaGeral = new PartidaGeral(nomes);
         partidaGeral.inicioCompeticao();
         iniciada = true;
+
+        registrarAtividade();
+        atualizarDesconexao();
     }
 
     public synchronized ResultadoJogada executarAcao(String token, AcaoJogo acao, Integer indicePeca, LadoMesa lado) {
+        verificarSalaAtiva();
         ParticipanteSala participante = buscarPorToken(token);
 
         if (participante == null) {
@@ -133,18 +154,74 @@ public class Sala {
             default -> throw new IllegalArgumentException("Ação não reconhecida.");
         }
 
-        partidaGeral.verificarFimPartida();
-        atualizarTemporizadores();
+        if(resultado == ResultadoJogada.JOGADA_VALIDA || resultado == ResultadoJogada.GATO || resultado == ResultadoJogada.COMPRA_REALIZADA
+                || resultado == ResultadoJogada.VEZ_PASSADA || resultado == ResultadoJogada.PARTIDA_ENCERRADA){
+            registrarAtividade();
+        }
 
+        partidaGeral.verificarFimPartida();
+
+        if (partidaGeral.competicaoEncerrada() && competicaoEncerradaDesde == null) {
+            competicaoEncerradaDesde = System.nanoTime();
+        }
+
+        atualizarTemporizadores();
         return resultado;
     }
 
+    private synchronized void atualizarDesconexao() {
+        boolean existeJogadorConectado = assinaturas.stream().anyMatch(AssinaturaJogo::isAtiva);
+
+        if (existeJogadorConectado) {
+            desconectadosDesde = null;
+        } else if (desconectadosDesde == null) {
+            desconectadosDesde = System.nanoTime();
+        }
+    }
+
+    private boolean tempoExpirado(long inicio, int minutos) {
+        long tempoDecorrido = System.nanoTime() - inicio;
+        return tempoDecorrido >= TimeUnit.MINUTES.toNanos(minutos);
+    }
+
+    public synchronized boolean deveSerRemovida() {
+        if (removida) {
+            return true;
+        }
+        // Competição encerrada //
+        if (competicaoEncerradaDesde != null) {
+            return tempoExpirado(competicaoEncerradaDesde, ConfiguracaoServidor.TEMPO_SALA_ENCERRADA_MINUTOS);
+        }
+        // Sala aguardando início //
+        if (!iniciada) {
+            return tempoExpirado(ultimaAtividade, ConfiguracaoServidor.TEMPO_SALA_AGUARDANDO_MINUTOS);
+        }
+        // Todos os jogadores desconectados //
+        if (desconectadosDesde != null && tempoExpirado(desconectadosDesde, ConfiguracaoServidor.TEMPO_DESCONECTADOS_MINUTOS)) {
+            return true;
+        }
+        // Competição sem atividade //
+        return tempoExpirado(ultimaAtividade, ConfiguracaoServidor.TEMPO_INATIVIDADE_MINUTOS);
+    }
+    private void verificarSalaAtiva() {
+        if (removida) {
+            throw new IllegalStateException("Esta sala foi encerrada por inatividade.");
+        }
+    }
+
+
     // registrar uma conexão de streaming //
     public synchronized AssinaturaJogo acompanharJogo(String token, StreamObserver<EstadoJogoResponse> observer, Executor executor) {
+        verificarSalaAtiva();
+        
         if (buscarPorToken(token) == null) {
             throw new SecurityException("Token inválido.");
         }
+        if (quantidadeStreamsAtivos(token) >= ConfiguracaoServidor.MAX_STREAMS_POR_JOGADOR) {
+            throw Status.RESOURCE_EXHAUSTED.withDescription("Limite de conexões simultâneas atingido.").asRuntimeException();
+        }
 
+        verificarSalaAtiva();
         AtomicReference<AssinaturaJogo> referencia = new AtomicReference<>();
         AssinaturaJogo assinatura = new AssinaturaJogo(token, observer, executor, () -> removerAssinatura(referencia.get()));
         referencia.set(assinatura);
@@ -152,6 +229,7 @@ public class Sala {
 
         if (assinatura.isAtiva()) {
             assinaturas.add(assinatura);
+            atualizarDesconexao();
         }
 
         // Protege contra cancelamento durante o registro //
@@ -172,6 +250,9 @@ public class Sala {
 
     // notificar todos os clientes conectados //
     public synchronized void notificarJogadores() {
+        if (removida) {
+            return;
+        }
         if (!iniciada || partidaGeral == null) {
             return;
         }
@@ -189,7 +270,7 @@ public class Sala {
     }
 
     public synchronized EstadoJogoResponse consultarEstadoJogo(String token) {
-
+        verificarSalaAtiva();
         ParticipanteSala participante = buscarPorToken(token);
 
         if (participante == null) {
@@ -280,6 +361,10 @@ public class Sala {
         return resposta.build();
     }
 
+    private long quantidadeStreamsAtivos(String token) {
+        return assinaturas.stream().filter(AssinaturaJogo::isAtiva).filter(assinatura -> Objects.equals(assinatura.getToken(), token)).count();
+    }
+
     private PecaMensagem converterPeca(Peca peca) {
         return PecaMensagem.newBuilder().setLadoA(peca.getLadoA()).setLadoB(peca.getLadoB()).build();
     }
@@ -307,7 +392,8 @@ public class Sala {
 
     private synchronized void removerAssinatura(AssinaturaJogo assinatura) {
         if (assinaturas.remove(assinatura)) {
-            System.out.println("Assinatura removida. Token: " + assinatura.getToken());
+            atualizarDesconexao();
+            System.out.println("[SALA " + codigo + "] Assinatura removida.");
             notificarJogadores();
         }
     }
@@ -340,6 +426,9 @@ public class Sala {
     }
 
     private synchronized void encerrarLojaAutomaticamente(int numeroLoja) {
+        if (removida) {
+            return;
+        }
         tarefaLoja = null;
 
         if (partidaGeral == null || partidaGeral.competicaoEncerrada()) {
@@ -368,6 +457,7 @@ public class Sala {
     }
 
     public synchronized ResultadoPetiscosLoja comprarPetisco(String token, TipoPetiscos tipo) {
+        verificarSalaAtiva();
         ParticipanteSala participante = buscarPorToken(token);
 
         if (participante == null) {
@@ -382,6 +472,7 @@ public class Sala {
         ResultadoPetiscosLoja resultado = partidaGeral.comprarPetisco(jogador, tipo);
 
         if (resultado == ResultadoPetiscosLoja.COMPRA_REALIZADA) {
+            registrarAtividade();
             System.out.println("[SALA " + codigo + "] " + jogador.getNome() + " comprou " + tipo.getNome());
             notificarJogadores();
         }
@@ -415,6 +506,9 @@ public class Sala {
     }
 
     private synchronized void encerrarPreparacaoAutomaticamente(long versao) {
+        if (removida) {
+            return;
+        }
         if (versao != versaoPreparacao) {
             return;
         }
@@ -446,6 +540,7 @@ public class Sala {
     }
 
     private synchronized void atualizarTemporizadores() {
+        verificarSalaAtiva();
         if (partidaGeral == null) {
             return;
         }
@@ -474,6 +569,8 @@ public class Sala {
         UsoPetisco uso = partidaGeral.utilizarPetisco(jogador, tipo, indicePeca);
 
         if (uso.sucesso()) {
+            registrarAtividade();
+
             System.out.println("[SALA " + codigo + "] " + jogador.getNome() + " utilizou " + tipo.getNome());
 
             atualizarTemporizadores();
@@ -483,6 +580,7 @@ public class Sala {
     }
 
     public synchronized boolean confirmarPreparacao(String token) {
+        verificarSalaAtiva();
         ParticipanteSala participante = buscarPorToken(token);
 
         if (participante == null) {
@@ -505,10 +603,10 @@ public class Sala {
         boolean confirmado = partidaGeral.confirmarPreparacao(jogador);
 
         if (confirmado) {
+            registrarAtividade();
             atualizarTemporizadores();
             notificarJogadores();
         }
-
         return confirmado;
     }
 
@@ -586,6 +684,60 @@ public class Sala {
 
         return partida.getJogadores().stream().anyMatch(j -> j != jogador && j.quantidadePecas() > 0);
     }
+
+    private synchronized void registrarAtividade() {
+        ultimaAtividade = System.nanoTime();
+    }
+
+
+    public void encerrarSala() {
+        List<AssinaturaJogo> assinaturasEncerradas;
+        synchronized (this) {
+            if (recursosLiberados) {
+                return;
+            }
+            removida = true;
+            recursosLiberados = true;
+
+            if (tarefaLoja != null) {
+                tarefaLoja.cancel(false);
+                tarefaLoja = null;
+            }
+            cancelarTemporizadorPreparacao();
+            assinaturasEncerradas = new ArrayList<>(assinaturas);
+            assinaturas.clear();
+        }
+
+        for (AssinaturaJogo assinatura : assinaturasEncerradas) {
+            assinatura.encerrarPeloServidor();
+        }
+
+        System.out.println("[SALA " + codigo + "] Encerrada.");
+    }
+
+    public synchronized boolean marcarExpirada() {
+        if (removida || !deveSerRemovida()) {
+            return false;
+        }
+        removida = true;
+        return true;
+    }
+
+
+    public synchronized void validarRequisicao(String token) {
+        verificarSalaAtiva();
+
+        ParticipanteSala participante = buscarPorToken(token);
+
+        if (participante == null) {
+            throw new SecurityException("Token inválido.");
+        }
+        if (!participante.permitirRequisicao()) {
+            throw Status.RESOURCE_EXHAUSTED.withDescription("Muitas requisições. Aguarde um instante.").asRuntimeException();
+        }
+    }
+
+
 
 
     public String getCodigo() {

@@ -6,7 +6,7 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+import io.grpc.StatusRuntimeException;
 
 public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImplBase{
     private final SalaService salaService;
@@ -53,7 +53,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void consultarSala(ConsultarSalaRequest request, StreamObserver<ConsultarSalaResponse> responseObserver) {
 
         try {
-            Sala sala = salaService.buscarSala(request.getCodigoSala());
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
 
             if (sala == null) {
                 throw new IllegalArgumentException("Sala não encontrada.");
@@ -63,8 +63,8 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
                 throw new SecurityException("Jogador não autorizado.");
             }
 
-            ConsultarSalaResponse response = ConsultarSalaResponse.newBuilder().setCodigoSala(sala.getCodigo())
-                    .addAllNomesJogadores(sala.getJogadores()).setIniciada(sala.isIniciada()).setPodeIniciar(sala.podeIniciar()).build();
+            ConsultarSalaResponse response = ConsultarSalaResponse.newBuilder().setCodigoSala(sala.getCodigo()).addAllNomesJogadores(sala.getJogadores())
+                            .setIniciada(sala.isIniciada()).setPodeIniciar(sala.podeIniciar()).build();
 
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -78,9 +78,8 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void iniciarPartida(IniciarPartidaRequest request, StreamObserver<IniciarPartidaResponse> responseObserver) {
 
         try {
-            salaService.iniciarSala(request.getCodigoSala(), request.getTokenCriador());
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
-
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenCriador());
+            sala.iniciarPartida(request.getTokenCriador());
             sala.notificarJogadores();
 
             IniciarPartidaResponse response = IniciarPartidaResponse.newBuilder().setIniciada(true).build();
@@ -97,10 +96,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void consultarEstadoJogo(EstadoJogoRequest request, StreamObserver<EstadoJogoResponse> responseObserver) {
 
         try {
-            Sala sala = salaService.buscarSala(request.getCodigoSala());
-            if (sala == null) {
-                throw new IllegalArgumentException("Sala não encontrada.");
-            }
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
 
             EstadoJogoResponse resposta = sala.consultarEstadoJogo(request.getTokenJogador());
 
@@ -115,7 +111,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     @Override
     public void acompanharJogo(EstadoJogoRequest request, StreamObserver<EstadoJogoResponse> responseObserver) {
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
             sala.acompanharJogo(request.getTokenJogador(), responseObserver, executorStreaming);
         } catch (RuntimeException e) {
             responderErro(responseObserver, e);
@@ -126,7 +122,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void jogarPeca(JogarPecaRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
 
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
 
             LadoMesa lado = switch (request.getLado()) {
                 case ESQUERDA -> LadoMesa.ESQUERDA;
@@ -150,8 +146,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void comprarPeca(AcaoSimplesRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
 
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
-
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
             ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(),
                     AcaoJogo.COMPRAR_PECA, null, null
             );
@@ -176,8 +171,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     @Override
     public void comprarPetisco(ComprarPetiscoRequest request, StreamObserver<ComprarPetiscoResponse> responseObserver) {
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
-
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
             TipoPetiscos tipo = converterTipoPetisco(request.getTipo());
 
             ResultadoPetiscosLoja resultado = sala.comprarPetisco(request.getTokenJogador(), tipo);
@@ -195,7 +189,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     @Override
     public void utilizarPetisco(UtilizarPetiscoRequest request, StreamObserver<UtilizarPetiscoResponse> responseObserver) {
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
 
             TipoPetiscos tipo = converterTipoPetisco(request.getTipo());
 
@@ -223,7 +217,7 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     @Override
     public void confirmarPreparacao(AcaoSimplesRequest request, StreamObserver<ConfirmarPreparacaoResponse> responseObserver) {
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
             boolean confirmado = sala.confirmarPreparacao(request.getTokenJogador());
 
             ConfirmarPreparacaoResponse resposta = ConfirmarPreparacaoResponse.newBuilder().setConfirmado(confirmado).build();
@@ -239,11 +233,9 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     public void passarVez(AcaoSimplesRequest request, StreamObserver<AcaoJogoResponse> responseObserver) {
 
         try {
-            Sala sala = buscarSalaObrigatoria(request.getCodigoSala());
 
-            ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(),
-                    AcaoJogo.PASSAR_VEZ, null, null
-            );
+            Sala sala = buscarSalaAutorizada(request.getCodigoSala(), request.getTokenJogador());
+            ResultadoJogada resultado = sala.executarAcao(request.getTokenJogador(), AcaoJogo.PASSAR_VEZ, null, null);
 
             enviarResultado(sala, resultado, responseObserver);
             sala.notificarJogadores();
@@ -259,6 +251,13 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
         if (sala == null) {
             throw new IllegalArgumentException("Sala não encontrada.");
         }
+        return sala;
+    }
+
+    private Sala buscarSalaAutorizada(String codigo, String token) {
+        Sala sala = buscarSalaObrigatoria(codigo);
+        sala.validarRequisicao(token);
+
         return sala;
     }
 
@@ -282,7 +281,11 @@ public class DesceUmaGrpcService extends DesceUmaServiceGrpc.DesceUmaServiceImpl
     private void responderErro(StreamObserver<?> observer, RuntimeException e) {
         Status status;
 
-        if (e instanceof SecurityException) {
+        if (e instanceof StatusRuntimeException erroGrpc) {
+            observer.onError(erroGrpc);
+            return;
+        }
+        else if (e instanceof SecurityException) {
             status = Status.PERMISSION_DENIED;
         } else if (e instanceof IllegalArgumentException) {
             status = Status.INVALID_ARGUMENT;
